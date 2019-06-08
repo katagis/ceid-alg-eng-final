@@ -3,17 +3,20 @@
 #include "node.h"
 
 #include "catch.hpp"
+#include <unordered_set>
 
 
 TEST_CASE( "set/get/del, size: 1", "[tree]" ) {
 	Tree<std::string, int, 20> tree;
 
+
+
 	SECTION("set & insert") {
 
 		REQUIRE(tree.size() == 0);
 
-		REQUIRE(tree.set(0, 0));
-		REQUIRE_FALSE(tree.set("foo", 1)); // return false if item already exists
+		REQUIRE(tree.set("foo", new int(0)));
+		REQUIRE_FALSE(tree.set("foo", new int(1))); // return false if item already exists
 
 		REQUIRE(tree.size() == 1);
 	}
@@ -42,32 +45,52 @@ TEST_CASE( "set/get/del, size: 1", "[tree]" ) {
 TEST_CASE("set/get/del/clear, size: 1000", "[tree]") {
 	Tree<int, int, 6> tree;
 
-	SECTION("insert") {
-		for (int i = 0; i < 1000; ++i) {
-			REQUIRE(tree.set(i, 0));
-		}
-		REQUIRE(tree.size() == 1000);
+	for (int i = 0; i < 1000; ++i) {
+		REQUIRE(tree.set(i, new int(0)));
 	}
 
-	SECTION("re-insert") {
-		for (int i = 0; i < 1000; ++i) {
-			REQUIRE_FALSE(tree.set(i, i));
-		}
-		REQUIRE(tree.size() == 1000);
+	REQUIRE(tree.size() == 1000);
+	for (int i = 0; i < 1000; ++i) {
+		REQUIRE_FALSE(tree.set(i, new int(i)));
 	}
 
-	SECTION("get") {
-		for (int i = 0; i < 1000; ++i) {
-			REQUIRE(tree.get(i));
-			REQUIRE(*tree.get(i) == i);
-		}
+	REQUIRE(tree.size() == 1000);
+	for (int i = 0; i < 1000; ++i) {
+		REQUIRE(tree.get(i));
+		REQUIRE(*tree.get(i) == i);
 	}
 
-	SECTION("clear") {
-		tree.clear();
-		REQUIRE(tree.size() == 0);
-		REQUIRE(tree.empty());
+	tree.clear();
+	REQUIRE(tree.size() == 0);
+	REQUIRE(tree.empty());
+}
+
+TEST_CASE("random insert", "[tree]") {
+	Tree<int, int, 4> tree;
+
+	std::unordered_set<int> set;
+
+	std::srand(0);
+
+	for (int i = 0; i < 10000; ++i) {
+		int* number = new int(std::rand() % 50000);
+		bool didInsert = set.insert(*number).second;
+		REQUIRE(tree.set(*number, number) == didInsert);
+		if (!didInsert) {
+			delete number;
+		}
+	}
+	REQUIRE(set.size() == tree.size());
+	for (auto number : set) {
+		int* found = tree.get(number);
+		REQUIRE(found);
+		REQUIRE((found && *found == number));
+		// TODO: memory leak if test fails.
+		if (found) {
+			delete found;
+		}
 	}
 }
+
 
 #endif
