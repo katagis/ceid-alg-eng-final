@@ -200,6 +200,10 @@ struct Tree {
 		return insertKeyVal(key, data);
 	}
 
+	bool maybe_add(const KeyType& key, DataType* data) {
+		return insertKeyVal(key, data, false);
+	}
+
 	DataType* get(const KeyType& key) const {
 		TExactLoc loc = findKey(key);
 		if (!loc.exists) {
@@ -265,10 +269,12 @@ private:
 		return nextNode;
 	}
 
-	bool insertKeyVal(const KeyType& key, DataType* data) {
+	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
 		TExactLoc location = findKey(key);
 		if (location.exists) {
-			setAtIt(location, data);
+			if (modifyIfExists) {
+				setAtIt(location, data);
+			}
 			return false;
 		}
 
@@ -344,7 +350,13 @@ public:
 			out << "node_id" << node->uid << " [shape=record, label=\"";
 			for (uint i = 0; i < N; ++i) {
 				if (i < node->childrenCount) {
-					out << "<f" << i << "> " << node->keys[i] << "|";
+					if (!node->isLeaf) {
+						out << "<f" << i << "> " << node->keys[i] << "|";
+					}
+					else {
+						out << "<f" << i << "> " << node->keys[i] << "\\n" << *reinterpret_cast<DataType*>(node->ptrs[i]) << "|";
+					}
+					
 				}
 				else {
 					out << "<f" << i << "> ~|";

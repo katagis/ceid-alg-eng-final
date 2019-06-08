@@ -5,7 +5,7 @@
 #include "catch.hpp"
 #include <unordered_set>
 
-
+/*
 TEST_CASE( "set/get/del, size: 1", "[tree]" ) {
 	Tree<std::string, int, 20> tree;
 
@@ -64,22 +64,23 @@ TEST_CASE("set/get/del/clear, size: 1000", "[tree]") {
 	REQUIRE(tree.size() == 0);
 	REQUIRE(tree.empty());
 }
-
+*/
 TEST_CASE("random insert", "[tree]") {
-	Tree<int, int, 4> tree;
+	Tree<int, int, 96> tree;
 
 	std::unordered_set<int> set;
 
 	std::srand(0);
 
-	for (int i = 0; i < 10000; ++i) {
+	for (int i = 0; i < 15000; ++i) {
 		int* number = new int(std::rand() % 50000);
 		bool didInsert = set.insert(*number).second;
-		REQUIRE(tree.set(*number, number) == didInsert);
+		REQUIRE(tree.maybe_add(*number, number) == didInsert);
 		if (!didInsert) {
 			delete number;
 		}
 	}
+
 	REQUIRE(set.size() == tree.size());
 	for (auto number : set) {
 		int* found = tree.get(number);
