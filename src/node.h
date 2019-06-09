@@ -10,6 +10,18 @@
 
 typedef unsigned int uint;
 
+// PERF: check performance vs list
+template<typename ArrayType, std::size_t ArraySize>
+void insertAtArray(std::array<ArrayType, ArraySize>& arr, uint lastIndex, uint location, const ArrayType& elem) {
+	assert(lastIndex < ArraySize);
+	assert(location <= lastIndex);
+	for (uint i = lastIndex; i > location; --i) {
+		arr[i] = std::move(arr[i - 1]);
+	}
+	arr[location] = elem;
+}
+
+
 template<typename KeyType, typename DataType, uint N>
 struct Node {
 	typedef std::pair<uint, bool> ElemIndex;
@@ -19,7 +31,7 @@ struct Node {
 	Node* parent;
 	// 2 seperate arrays for better cache management, since iterating keys only is frequent.
 	std::array<KeyType, N> keys;
-	std::array<Node*, N> ptrs;
+	std::array<Node*, N + 1> ptrs;
 
 
 	uint uid;
@@ -38,22 +50,32 @@ struct Node {
 
 	DataType* getAsData(uint index) {
 		assert(isLeaf);
-		assert(index < childrenCount);
-		return reinterpret_cast<DataType*>(ptrs[index]);
+		assert(index <= childrenCount);
+		return reinterpret_cast<DataType*>(ptrs[index - 1]);
 	}
 
 	void setAsData(uint index, DataType* data) {
 		assert(isLeaf);
-		assert(index < childrenCount);
-		ptrs[index] = reinterpret_cast<Node*>(data);
+		assert(index <= childrenCount);
+		ptrs[index - 1] = reinterpret_cast<Node*>(data);
 	}
 
 	ElemIndex getIndexOf(const KeyType& key) {
-		if (childrenCount == 0) {
-			return ElemIndex(0, false);
-		}
 		
 		// binary search here, with range from 0 -> childrenCount;
+		//
+		// example shape:
+		//
+		// |*| bcd |*| lay |*| --- |*|
+		// 
+		// we want to return the ptr index to follow to find the value
+		// if key < bcd return 0
+		// if key == bcd || key < lay return 1
+		// ...
+
+		if (childrenCount == 0 || key < keys[0]) { // leftmost as a special case
+			return ElemIndex(0, false);
+		}
 
 		uint left = 0;
 		uint right = childrenCount - 1;
@@ -63,16 +85,13 @@ struct Node {
 			middle = left + (right - left) / 2;
 			
 			if (key == keys[middle]) {
-				return ElemIndex(middle, true);
+				return ElemIndex(middle + 1, true);
 			}
 
 			if (key > keys[middle]) {
 				left = middle + 1;
 			}
 			else {
-				if (middle == 0) {
-					return ElemIndex(0, false);
-				}
 				right = middle - 1;
 			}
 		}
@@ -81,39 +100,31 @@ struct Node {
 		return ElemIndex(left, false);
 	}
 
-private:
-	// PERF: optimize array extension if it actually stays in the final
-	template<typename ArrayType>
-	void insertAtArray(std::array<ArrayType, N>& arr, uint lastIndex, uint location, const ArrayType& elem) {
-		assert(lastIndex < N);
-		assert(location <= lastIndex);
-		for (uint i = lastIndex; i > location; --i) {
-			arr[i] = std::move(arr[i - 1]);
-		}
-		arr[location] = elem;
-	}
-
-public:
-	template<typename Ptr>
-	void insertAt(uint index, const KeyType& key, Ptr* data) {
+	void insertAtLeaf(uint index, const KeyType& key, DataType* data) {
 		assert(getIndexOf(key).second == false); // This should not exist.
 		assert(isRoot() || childrenCount >= N / 2);
-
-		// Only allow DataType or Node as Ptr, otherwise you used this function wrong.
-		static_assert(std::is_same<Ptr, Node>::value || std::is_same<Ptr, DataType>::value, "Incorrect type at Node::insertAt");
+		assert(isLeaf);
 
 		insertAtArray(keys, childrenCount, index, key);
 		insertAtArray(ptrs, childrenCount, index, reinterpret_cast<Node*>(data));
 		childrenCount++;
 	}
 
-	template<typename Ptr>
-	static Node* splitAndInsert(Node* initialNode, uint insertIndex, const KeyType& key, Ptr* data) {
+	void insertAtInternal(uint index, const KeyType& key, Node* node) {
+		assert(getIndexOf(key).second == false); // This should not exist.
+		assert(isRoot() || childrenCount >= N / 2);
+		assert(!isLeaf);
+
+		insertAtArray(keys, childrenCount, index, key);
+		insertAtArray(ptrs, childrenCount + 1, index + 1, node);
+		childrenCount++;
+	}
+
+	static Node* splitAndInsertLeaf(Node* initialNode, uint insertIndex, const KeyType& key, DataType* data) {
 		assert(initialNode->childrenCount == N);
-		static_assert(std::is_same<Ptr, Node>::value || std::is_same<Ptr, DataType>::value, "Incorrect type at Node::insertAt");
 	
 		Node* rightNode = new Node();
-		
+		rightNode->isLeaf = true;
 		if (insertIndex < N / 2) {
 			// Our element is in the left node
 
@@ -124,11 +135,7 @@ public:
 			}
 			rightNode->childrenCount = N / 2;
 			initialNode->childrenCount = N / 2;
-			initialNode->insertAt(insertIndex, key, data);
-
-			if (std::is_same<Ptr, Node>::value) {
-				reinterpret_cast<Node*>(data)->parent = initialNode;
-			}
+			initialNode->insertAtLeaf(insertIndex, key, data);
 		}
 		else {
 			// PERF: for now we do the same as above,
@@ -140,17 +147,73 @@ public:
 			}
 			rightNode->childrenCount = N / 2;
 			initialNode->childrenCount = N / 2;
-			rightNode->insertAt(insertIndex - N / 2, key, data);
+			rightNode->insertAtLeaf(insertIndex - N / 2, key, data);
 		}
-
-		if (!initialNode->isLeaf) {
-			for (uint i = 0; i < rightNode->childrenCount; ++i) {
-				rightNode->ptrs[i]->parent = rightNode;
-			}
-		}
-
 
 		return rightNode;
+	}
+
+	// return "popped" key, the one that gets lost from the split
+	static KeyType splitAndInsertInternal(Node* initialNode, Node*& outNewNode, uint insertIndex, const KeyType& key, Node* ptrInsert) {
+		assert(initialNode->childrenCount == N);
+
+		KeyType poppedKey;
+		outNewNode = new Node();
+
+		if (insertIndex < N / 2) {
+			// Our element is in the left node
+
+			int i = N;
+			// PERF: split loops for better cache
+			for (i = N; i > N / 2; --i) {
+				outNewNode->ptrs[i - N / 2] = initialNode->ptrs[i];
+				outNewNode->keys[i - N / 2 - 1] = std::move(initialNode->keys[i - 1]);
+			}
+			outNewNode->ptrs[0] = initialNode->ptrs[N / 2];
+			poppedKey = initialNode->keys[N / 2];
+
+			outNewNode->childrenCount = N / 2;
+			initialNode->childrenCount = N / 2;
+			initialNode->insertAtInternal(insertIndex, key, ptrInsert);
+
+			ptrInsert->parent = initialNode;
+		}
+		else if (insertIndex == N / 2) {
+
+			for (int i = N; i > N / 2; --i) {
+				outNewNode->ptrs[i - N / 2] = initialNode->ptrs[i];
+				outNewNode->keys[i - N / 2 - 1] = std::move(initialNode->keys[i - 1]);
+			}
+			outNewNode->ptrs[0] = ptrInsert;
+			poppedKey = key;
+
+			outNewNode->childrenCount = N / 2;
+			initialNode->childrenCount = N / 2;
+		}
+		else {
+			// PERF: for now we do the same as above,
+			// this moves some items 2 times and can be optimised
+
+			int i = N;
+			// PERF: split loops for better cache
+			for (i = N; i > N / 2; --i) {
+				outNewNode->ptrs[i - N / 2] = initialNode->ptrs[i];
+				outNewNode->keys[i - N / 2 - 1] = std::move(initialNode->keys[i - 1]);
+			}
+			outNewNode->ptrs[0] = initialNode->ptrs[N / 2];
+			poppedKey = initialNode->keys[N / 2];
+
+			outNewNode->childrenCount = N / 2;
+			initialNode->childrenCount = N / 2;
+
+			outNewNode->insertAtInternal(insertIndex - N / 2, key, ptrInsert);
+		}
+
+		for (uint i = 0; i < outNewNode->childrenCount + 1; ++i) {
+			outNewNode->ptrs[i]->parent = outNewNode;
+		}
+
+		return std::move(poppedKey);
 	}
 };
 
@@ -235,17 +298,9 @@ private:
 		std::pair<uint, bool> nextLoc;
 		TNode* nextNode = root;
 
-		// This is a special case where search is not required,
-		// because our root->keys[0] is the min key in our data.
-		if (key < root->keys[0]) {
-			return TExactLoc(root, std::pair<uint, bool>(0, false));
-		}
-
 		while (!nextNode->isLeaf) {
 			 nextLoc = nextNode->getIndexOf(key);
-			 const uint accessLoc = nextLoc.second || nextLoc.first == 0 ? nextLoc.first : nextLoc.first - 1;
-			 assert(accessLoc >= 0 && accessLoc < nextNode->childrenCount && nextNode->childrenCount > 0);
-			 nextNode = nextNode->ptrs[accessLoc];
+			 nextNode = nextNode->ptrs[nextLoc.first];
 		}
 		nextLoc = nextNode->getIndexOf(key);
 		return TExactLoc(nextNode, nextLoc);
@@ -257,17 +312,17 @@ private:
 		location.leaf->setAsData(location.index, data);
 	}
 
-	// This updates the only case where insert has to overwrite values.
-	// that is when a new minKey is inserted.
-	TNode* updateMinKey(const KeyType& key) {
-		TNode* nextNode = root;
-		while (!nextNode->isLeaf) {
-			nextNode->keys[0] = key;
-			nextNode = nextNode->ptrs[0];
-		}
-		// do NOT update the leaf node! let insert code handle this.
-		return nextNode;
-	}
+	//// This updates the only case where insert has to overwrite values.
+	//// that is when a new minKey is inserted.
+	//TNode* updateMinKey(const KeyType& key) {
+	//	TNode* nextNode = root;
+	//	while (!nextNode->isLeaf) {
+	//		nextNode->keys[0] = key;
+	//		nextNode = nextNode->ptrs[0];
+	//	}
+	//	// do NOT update the leaf node! let insert code handle this.
+	//	return nextNode;
+	//}
 
 	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
 		TExactLoc location = findKey(key);
@@ -278,39 +333,35 @@ private:
 			return false;
 		}
 
-		// update the special case, a new minkey inserted.
-		// dont forget to update the actual leaf
-		if (!location.leaf->isLeaf) {
-			location.leaf = updateMinKey(key); 
-		}
-
 		if (location.leaf->childrenCount < N) {
-			location.leaf->insertAt(location.index, key, data);
+			location.leaf->insertAtLeaf(location.index, key, data);
 		}
 		else {
 			// split node,
-			TNode* second = TNode::splitAndInsert(location.leaf, location.index, key, data);
+			TNode* second = TNode::splitAndInsertLeaf(location.leaf, location.index, key, data);
 			second->isLeaf = true;
 			nodes++;
 
 			// now update parent, maybe multiple parents
-			insertInParent(location.leaf, second);
+			insertInParent(location.leaf, second, second->keys[0]);
 		}
 		elementCount++;
 		return true;
 	}
 
 	// use after split to update leftNode, new rightNode the tree parent
-	void insertInParent(TNode* leftNode, TNode* rightNode) {
-		const KeyType& rightKey = rightNode->keys[0];
+	void insertInParent(TNode* leftNode, TNode* rightNode, const KeyType& rightMinKey) {
+
 		if (leftNode->isRoot()) {
 			assert(leftNode->parent == nullptr);
 			root = new TNode();
 			nodes++;
 			leftNode->parent = root;
 			rightNode->parent = root;
-			root->insertAt(0, leftNode->keys[0], leftNode);
-			root->insertAt(1, rightNode->keys[0], rightNode);
+			root->ptrs[0] = leftNode;
+			root->ptrs[1] = rightNode;
+			root->keys[0] = rightMinKey;
+			root->childrenCount = 1;
 			height++;
 			return;
 		}
@@ -319,24 +370,52 @@ private:
 		TNode* parent = leftNode->parent;
 
 		// PERF: maybe cache something to avoid searching in the parent again? Path from root in first search down?
-		std::pair<uint, bool> insertLoc = parent->getIndexOf(rightNode->keys[0]);
+		std::pair<uint, bool> insertLoc = parent->getIndexOf(rightMinKey);
 		assert(insertLoc.second == false);
 		
 		if (parent->childrenCount < N) {
-			parent->insertAt(insertLoc.first, rightNode->keys[0], rightNode);
+			parent->insertAtInternal(insertLoc.first, rightMinKey, rightNode);
 			rightNode->parent = parent;
 		}
 		else {
-			TNode* added = TNode::splitAndInsert(parent, insertLoc.first, rightNode->keys[0], rightNode);
+			TNode* added = nullptr;
+			KeyType poppedKey = TNode::splitAndInsertInternal(parent, added, insertLoc.first, rightMinKey, rightNode);
 			nodes++;
 			added->isLeaf = false;
 			added->parent = parent;
-			insertInParent(parent, added);
+			insertInParent(parent, added, poppedKey);
 		}
 	}
 
 public:
+
+	void validate_ptrs() const {
+		std::function<void(TNode*)> for_node;
+
+		for_node = [&](TNode* node) -> void {
+			if (node->isLeaf) {
+				return;
+			}
+
+			for (uint i = 0; i < node->childrenCount + 1; ++i) {
+				if (node->ptrs[i]->parent != node) {
+					std::cerr << "found incorrect node!\n";
+					dot_print_node(node);
+					getchar();
+				}
+				for_node(node->ptrs[i]);
+			}
+
+		};
+
+		for_node(root);
+	}
+
 	void dot_print() const {
+		dot_print_node(root);
+	}
+
+	void dot_print_node(TNode* start) const {
 		constexpr char nl = '\n';
 		auto& out = std::cerr;
 
@@ -348,35 +427,38 @@ public:
 
 		print_info = [&](TNode* node) -> void {
 			out << "node_id" << node->uid << " [shape=record, label=\"";
+			if (!node->isLeaf) {
+				out << "<f" << 0 << "> # |";
+			}
 			for (uint i = 0; i < N; ++i) {
 				if (i < node->childrenCount) {
 					if (!node->isLeaf) {
-						out << "<f" << i << "> " << node->keys[i] << "|";
+						out << "<f" << i+1 << "> " << node->keys[i] << "|";
 					}
 					else {
-						out << "<f" << i << "> " << node->keys[i] << "\\n" << *reinterpret_cast<DataType*>(node->ptrs[i]) << "|";
+						out << "<f" << i+1 << "> " << node->keys[i] << "\\n" << *node->getAsData(i+1) << "|";
 					}
 					
 				}
 				else {
-					out << "<f" << i << "> ~|";
+					out << "<f" << i+1 << "> ~|";
 				}
 			}
 			out << '\b';
 			out << "\"];" << nl;
 
 			if (!node->isLeaf) {
-				for (uint i = 0; i < node->childrenCount; ++i) {
+				for (uint i = 0; i < node->childrenCount + 1; ++i) {
 					print_info(node->ptrs[i]);
 				}
 			}
 		};
 
-		print_info(root);
+		print_info(start);
 
 		print_conn = [&](TNode* node) -> void {
 			if (!node->isLeaf) {
-				for (uint i = 0; i < node->childrenCount; ++i) {
+				for (uint i = 0; i < node->childrenCount + 1; ++i) {
 					out << "\"node_id" << node->uid << "\":f" << i << " -> ";
 					out << "node_id" << node->ptrs[i]->uid << ";" << nl;
 					print_conn(node->ptrs[i]);
@@ -388,7 +470,7 @@ public:
 			}
 		};
 
-		print_conn(root);
+		print_conn(start);
 		out << "}" << nl;
 	}
 };

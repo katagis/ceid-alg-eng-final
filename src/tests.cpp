@@ -66,7 +66,7 @@ TEST_CASE("set/get/del/clear, size: 1000", "[tree]") {
 }
 */
 TEST_CASE("random insert", "[tree]") {
-	Tree<int, int, 96> tree;
+	Tree<int, int, 4> tree;
 
 	std::unordered_set<int> set;
 
@@ -91,6 +91,7 @@ TEST_CASE("random insert", "[tree]") {
 			delete found;
 		}
 	}
+	tree.dot_print();
 }
 
 
