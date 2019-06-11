@@ -36,6 +36,11 @@ struct Node {
 
 	uint uid;
 
+	// this does not resolve to actual struct wide static 
+	// but static for this specific template instantiation
+	static const uint Parity = N % 2;
+	static const uint HN = N / 2 + Parity;
+
 	Node()
 		: isLeaf(false) 
 		, childrenCount(0)
@@ -112,7 +117,7 @@ struct Node {
 
 	void insertAtInternal(uint index, const KeyType& key, Node* node) {
 		assert(getIndexOf(key).second == false); // This should not exist.
-		assert(isRoot() || childrenCount >= N / 2);
+		assert(isRoot() || childrenCount + 1 >= N / 2);
 		assert(!isLeaf);
 
 		insertAtArray(keys, childrenCount, index, key);
@@ -125,29 +130,29 @@ struct Node {
 	
 		Node* rightNode = new Node();
 		rightNode->isLeaf = true;
-		if (insertIndex < N / 2) {
+		if (insertIndex < HN) {
 			// Our element is in the left node
 
 			// PERF: split loops for better cache
-			for (int i = N - 1; i >= N / 2; --i) {
-				rightNode->keys[i - N/2] = std::move(initialNode->keys[i]);
-				rightNode->ptrs[i - N/2] = initialNode->ptrs[i];
+			for (int i = N - 1; i >= HN; --i) {
+				rightNode->keys[i - HN] = std::move(initialNode->keys[i]);
+				rightNode->ptrs[i - HN] = initialNode->ptrs[i];
 			}
-			rightNode->childrenCount = N / 2;
-			initialNode->childrenCount = N / 2;
+			rightNode->childrenCount = HN;
+			initialNode->childrenCount = HN - Parity;
 			initialNode->insertAtLeaf(insertIndex, key, data);
 		}
 		else {
 			// PERF: for now we do the same as above,
 			// this moves some items 2 times and can be optimised
 			
-			for (int i = N - 1; i >= N / 2; --i) {
-				rightNode->keys[i - N/2] = std::move(initialNode->keys[i]);
-				rightNode->ptrs[i - N/2] = initialNode->ptrs[i];
+			for (int i = N - 1; i >= HN; --i) {
+				rightNode->keys[i - HN] = std::move(initialNode->keys[i]);
+				rightNode->ptrs[i - HN] = initialNode->ptrs[i];
 			}
-			rightNode->childrenCount = N / 2;
-			initialNode->childrenCount = N / 2;
-			rightNode->insertAtLeaf(insertIndex - N / 2, key, data);
+			rightNode->childrenCount = HN - Parity;
+			initialNode->childrenCount = HN;
+			rightNode->insertAtLeaf(insertIndex - HN, key, data);
 		}
 
 		return rightNode;
@@ -156,59 +161,59 @@ struct Node {
 	// return "popped" key, the one that gets lost from the split
 	static KeyType splitAndInsertInternal(Node* initialNode, Node*& outNewNode, uint insertIndex, const KeyType& key, Node* ptrInsert) {
 		assert(initialNode->childrenCount == N);
+		assert(ptrInsert);
 
 		KeyType poppedKey;
 		outNewNode = new Node();
 
-		if (insertIndex < N / 2) {
+		if (insertIndex < HN) {
 			// Our element is in the left node
 
-			int i = N;
 			// PERF: split loops for better cache
-			for (i = N; i > N / 2; --i) {
-				outNewNode->ptrs[i - N / 2] = initialNode->ptrs[i];
-				outNewNode->keys[i - N / 2 - 1] = std::move(initialNode->keys[i - 1]);
+			for (int i = N; i > HN; --i) {
+				outNewNode->ptrs[i - HN] = initialNode->ptrs[i];
+				outNewNode->keys[i - HN - 1] = std::move(initialNode->keys[i - 1]);
 			}
-			outNewNode->ptrs[0] = initialNode->ptrs[N / 2];
-			poppedKey = initialNode->keys[N / 2];
+			outNewNode->ptrs[0] = initialNode->ptrs[HN];
+			poppedKey = initialNode->keys[HN - 1];
 
-			outNewNode->childrenCount = N / 2;
-			initialNode->childrenCount = N / 2;
+			outNewNode->childrenCount = HN;
+			initialNode->childrenCount = HN - 1;
+
 			initialNode->insertAtInternal(insertIndex, key, ptrInsert);
 
 			ptrInsert->parent = initialNode;
 		}
-		else if (insertIndex == N / 2) {
+		else if (insertIndex == HN) {
 
-			for (int i = N; i > N / 2; --i) {
-				outNewNode->ptrs[i - N / 2] = initialNode->ptrs[i];
-				outNewNode->keys[i - N / 2 - 1] = std::move(initialNode->keys[i - 1]);
+			for (int i = N; i > HN; --i) {
+				outNewNode->ptrs[i - HN] = initialNode->ptrs[i];
+				outNewNode->keys[i - HN - 1] = std::move(initialNode->keys[i - 1]);
 			}
 			outNewNode->ptrs[0] = ptrInsert;
 			poppedKey = key;
 
-			outNewNode->childrenCount = N / 2;
-			initialNode->childrenCount = N / 2;
+			outNewNode->childrenCount = HN;
+			initialNode->childrenCount = HN;
 		}
 		else {
 			// PERF: for now we do the same as above,
 			// this moves some items 2 times and can be optimised
 
-			int i = N;
 			// PERF: split loops for better cache
-			for (i = N; i > N / 2; --i) {
-				outNewNode->ptrs[i - N / 2] = initialNode->ptrs[i];
-				outNewNode->keys[i - N / 2 - 1] = std::move(initialNode->keys[i - 1]);
+			for (int i = N; i - 1 > HN; --i) {
+				outNewNode->ptrs[i - 1 - HN] = initialNode->ptrs[i];
+				outNewNode->keys[i - 1 - HN - 1] = std::move(initialNode->keys[i - 1]);
 			}
-			outNewNode->ptrs[0] = initialNode->ptrs[N / 2];
-			poppedKey = initialNode->keys[N / 2];
+			outNewNode->ptrs[0] = initialNode->ptrs[HN + 1];
+			poppedKey = initialNode->keys[HN];
 
-			outNewNode->childrenCount = N / 2;
-			initialNode->childrenCount = N / 2;
+			outNewNode->childrenCount = HN - 1;
+			initialNode->childrenCount = HN;
 
-			outNewNode->insertAtInternal(insertIndex - N / 2, key, ptrInsert);
+			outNewNode->insertAtInternal(insertIndex - HN - 1, key, ptrInsert);
 		}
-
+		assert(outNewNode->childrenCount >= N / 2);
 		for (uint i = 0; i < outNewNode->childrenCount + 1; ++i) {
 			outNewNode->ptrs[i]->parent = outNewNode;
 		}
@@ -395,6 +400,14 @@ public:
 		for_node = [&](TNode* node) -> void {
 			if (node->isLeaf) {
 				return;
+			}
+
+			if (node->childrenCount >= 1) {
+				if (node->ptrs[0] == node->ptrs[1]) {
+					dot_print_node(node);
+					std::cerr << "found double ptr node!\n";
+					getchar();
+				}
 			}
 
 			for (uint i = 0; i < node->childrenCount + 1; ++i) {
