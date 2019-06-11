@@ -33,6 +33,10 @@ struct Node {
 	std::array<KeyType, N> keys;
 	std::array<Node*, N + 1> ptrs;
 
+	void debug() {
+		keys.data();
+		ptrs.data();
+	}
 
 	uint uid;
 
@@ -42,11 +46,12 @@ struct Node {
 	static const uint HN = N / 2 + Parity;
 
 	Node()
-		: isLeaf(false) 
+		: isLeaf(false)
 		, childrenCount(0)
 		, parent(nullptr) {
 		static uint total_uids = 0;
-		uid = total_uids++; 
+		uid = total_uids++;
+		debug();
 	}
 
 	bool isRoot() const {
@@ -134,9 +139,9 @@ struct Node {
 			// Our element is in the left node
 
 			// PERF: split loops for better cache
-			for (int i = N - 1; i >= HN; --i) {
-				rightNode->keys[i - HN] = std::move(initialNode->keys[i]);
-				rightNode->ptrs[i - HN] = initialNode->ptrs[i];
+			for (int i = N - 1; i >= HN - Parity; --i) {
+				rightNode->keys[i - HN + Parity] = std::move(initialNode->keys[i]);
+				rightNode->ptrs[i - HN + Parity] = initialNode->ptrs[i];
 			}
 			rightNode->childrenCount = HN;
 			initialNode->childrenCount = HN - Parity;
@@ -177,7 +182,7 @@ struct Node {
 			outNewNode->ptrs[0] = initialNode->ptrs[HN];
 			poppedKey = initialNode->keys[HN - 1];
 
-			outNewNode->childrenCount = HN;
+			outNewNode->childrenCount = HN - Parity;
 			initialNode->childrenCount = HN - 1;
 
 			initialNode->insertAtInternal(insertIndex, key, ptrInsert);
@@ -193,7 +198,7 @@ struct Node {
 			outNewNode->ptrs[0] = ptrInsert;
 			poppedKey = key;
 
-			outNewNode->childrenCount = HN;
+			outNewNode->childrenCount = HN - Parity;
 			initialNode->childrenCount = HN;
 		}
 		else {
@@ -208,7 +213,7 @@ struct Node {
 			outNewNode->ptrs[0] = initialNode->ptrs[HN + 1];
 			poppedKey = initialNode->keys[HN];
 
-			outNewNode->childrenCount = HN - 1;
+			outNewNode->childrenCount = HN - 1 - Parity;
 			initialNode->childrenCount = HN;
 
 			outNewNode->insertAtInternal(insertIndex - HN - 1, key, ptrInsert);
@@ -410,6 +415,14 @@ public:
 				}
 			}
 
+			if (node->childrenCount >= 2) {
+				if (node->keys[0] > node->keys[1]) {
+					dot_print_node(node);
+					std::cerr << "found key error!\n";
+					getchar();
+				}
+			}
+
 			for (uint i = 0; i < node->childrenCount + 1; ++i) {
 				if (node->ptrs[i]->parent != node) {
 					std::cerr << "found incorrect node!\n";
@@ -428,7 +441,7 @@ public:
 		dot_print_node(root);
 	}
 
-	void dot_print_node(TNode* start) const {
+	static void dot_print_node(TNode* start) {
 		constexpr char nl = '\n';
 		auto& out = std::cerr;
 
