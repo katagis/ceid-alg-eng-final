@@ -65,7 +65,7 @@ TEST_CASE("set/get/del/clear, size: 1000", "[tree]") {
 	REQUIRE(tree.empty());
 }
 */
-TEST_CASE("random insert", "[tree]") {
+TEST_CASE("random insert even", "[tree]") {
 	Tree<int, int, 4> tree;
 
 	std::unordered_set<int> set;
@@ -73,7 +73,7 @@ TEST_CASE("random insert", "[tree]") {
 	std::srand(0);
 
 	for (int i = 0; i < 15000; ++i) {
-		int* number = new int(std::rand() % 50000);
+		int* number = new int(std::rand() % 20000);
 		bool didInsert = set.insert(*number).second;
 		REQUIRE(tree.maybe_add(*number, number) == didInsert);
 		if (!didInsert) {
@@ -91,8 +91,36 @@ TEST_CASE("random insert", "[tree]") {
 			delete found;
 		}
 	}
-	tree.dot_print();
+
 }
 
+TEST_CASE("random insert odd", "[tree]") {
+	Tree<int, int, 3> tree;
+
+	std::unordered_set<int> set;
+
+	std::srand(0);
+
+	for (int i = 0; i < 15000; ++i) {
+		int* number = new int(std::rand() % 20000);
+		bool didInsert = set.insert(*number).second;
+		REQUIRE(tree.maybe_add(*number, number) == didInsert);
+		if (!didInsert) {
+			delete number;
+		}
+	}
+
+	REQUIRE(set.size() == tree.size());
+	for (auto number : set) {
+		int* found = tree.get(number);
+		REQUIRE(found);
+		REQUIRE((found && *found == number));
+		// TODO: memory leak if test fails.
+		if (found) {
+			delete found;
+		}
+	}
+
+}
 
 #endif

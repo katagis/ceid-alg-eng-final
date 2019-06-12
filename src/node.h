@@ -21,6 +21,32 @@ void insertAtArray(std::array<ArrayType, ArraySize>& arr, uint lastIndex, uint l
 	arr[location] = elem;
 }
 
+template<typename ArrayType, std::size_t ArraySize>
+void deleteFromArrayAt(std::array<ArrayType, ArraySize>& arr, uint arrSize, uint at) {
+	assert(arrSize <= ArraySize);
+	for (uint i = at; i < arrSize - 1; ++i) {
+		arr[i] = std::move(arr[i + 1]);
+	}
+}
+
+
+template<typename ArrayType, std::size_t ArraySize>
+uint deleteFromArray(std::array<ArrayType, ArraySize>& arr, uint arrSize, const ArrayType& elem) {
+	assert(arrSize <= ArraySize);
+
+	std::pair<uint, bool> foundIndex = { 0, false };
+	for (uint i = 0; i < arrSize; ++i) {
+		if (arr[i] == elem) {
+			foundIndex = { i, true };
+			break;
+		}
+	}
+	assert(foundIndex.second);
+
+	deleteFromArrayAt(arr, arrSize, foundIndex.first);
+	return foundIndex.first;
+}
+
 
 template<typename KeyType, typename DataType, uint N>
 struct Node {
@@ -33,9 +59,11 @@ struct Node {
 	std::array<KeyType, N> keys;
 	std::array<Node*, N + 1> ptrs;
 
+	// todo: remove this, it is only here to force the compiler to instanciate these templates
+	// if not instanciated we cannot use them while debugging.
 	void debug() {
-		keys.data();
-		ptrs.data();
+		//keys.data();
+		//ptrs.data();
 	}
 
 	uint uid;
@@ -225,6 +253,15 @@ struct Node {
 
 		return std::move(poppedKey);
 	}
+
+	
+	// Returns key index that was deleted
+	uint deleteKeyAndPtr(const KeyType& key, Node* ptr) {
+		const uint pos = deleteFromArray(keys, childrenCount, key);
+		deleteFromArray(ptrs, childrenCount + !isLeaf, ptr);
+		childrenCount--;
+		return pos;
+	}
 };
 
 template<typename KeyType, typename DataType, uint N>
@@ -250,6 +287,9 @@ template<typename KeyType, typename DataType, uint N = 10>
 struct Tree {
 	typedef Node<KeyType, DataType, N> TNode;
 	typedef ExactLoc<KeyType, DataType, N> TExactLoc;
+	
+	static const uint Parity = N % 2;
+	static const uint HN = N / 2 + Parity;
 
 	TNode* root;
 	
@@ -287,7 +327,16 @@ struct Tree {
 
 	// Return true if actually removed something
 	bool remove(const KeyType& key) {
-		return false;
+		return removePop(key) != nullptr;
+	}
+
+	// Remove a key and return the pointer to the element if it existed.
+	DataType* removePop(const KeyType& key) {
+		TExactLoc loc = findKey(key);
+		if (!loc.exists) {
+			return nullptr;
+		}
+		return deleteAt(loc);
 	}
 
 	uint size() const {
@@ -316,23 +365,162 @@ private:
 		return TExactLoc(nextNode, nextLoc);
 	}
 
-	// PERF: maybe const & for location? test first
+	// PERF: maybe pass location by const&, do tests
 	void setAtIt(TExactLoc location, DataType* data) {
 		assert(location.exists);
 		location.leaf->setAsData(location.index, data);
 	}
 
-	//// This updates the only case where insert has to overwrite values.
-	//// that is when a new minKey is inserted.
-	//TNode* updateMinKey(const KeyType& key) {
-	//	TNode* nextNode = root;
-	//	while (!nextNode->isLeaf) {
-	//		nextNode->keys[0] = key;
-	//		nextNode = nextNode->ptrs[0];
-	//	}
-	//	// do NOT update the leaf node! let insert code handle this.
-	//	return nextNode;
-	//}
+	
+	void redistributeBetween(TNode* left, TNode* right, bool smallerLeft, const KeyType& keyInBetween) {
+		assert(left->keys[0] < right->keys[0]);
+		assert(keyInBetween <= right->keys[0]);
+
+		if (smallerLeft) {
+			assert(left->childrenCount < right->childrenCount);
+		}
+		else {
+			assert(right->childrenCount < left->childrenCount);
+		}
+
+		TNode* parent = left->parent;
+		if (!left->isLeaf) {
+			if (smallerLeft) {
+				left->insertAtInternal(left->childrenCount, keyInBetween, right->ptrs[0]);
+
+				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				assert(loc.second);
+				parent->keys[loc.first] = std::move(right->keys[0]);
+				
+				deleteFromArrayAt(right->ptrs, right->childrenCount + 1, 0);
+				deleteFromArrayAt(right->keys, right->childrenCount, 0);
+				right->childrenCount--;
+			}
+			else {
+				right->insertAtInternal(0, keyInBetween, left->ptrs[left->childrenCount]);
+
+				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				assert(loc.second);
+
+				parent->keys[loc.first] = std::move(left->keys[left->childrenCount]);
+
+				left->childrenCount--;
+			}
+		}
+		else {
+			if (smallerLeft) {
+				left->insertAtLeaf(left->childrenCount, right->keys[0], reinterpret_cast<DataType*>(right->ptrs[0]));
+
+				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				assert(loc.second);
+				deleteFromArrayAt(right->ptrs, right->childrenCount, 0);
+				deleteFromArrayAt(right->keys, right->childrenCount, 0);
+
+				parent->keys[loc.first - 1] = std::move(right->keys[0]);
+				right->childrenCount--;
+			}
+			else {
+				right->insertAtLeaf(0, left->keys[left->childrenCount - 1], reinterpret_cast<DataType*>(left->ptrs[left->childrenCount - 1]));
+
+				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				assert(loc.second);
+
+				parent->keys[loc.first - 1] = std::move(left->keys[left->childrenCount - 1]);
+
+				left->childrenCount--;
+			}
+		}
+	}
+
+	void deleteEntry(TNode* initial, const KeyType& key, TNode* ptr) {
+		assert(initial);
+
+		const uint delPos = initial->deleteKeyAndPtr(key, ptr);
+
+		if (initial->childrenCount >= HN) {
+			if (delPos == 0 && initial->isLeaf && !initial->isRoot()) {
+				// update parent to new key
+				uint parentLoc = initial->parent->getIndexOf(key).first;
+				initial->parent->keys[parentLoc - 1] = initial->keys[0];
+			}
+			return;
+		}
+
+		if (initial->isRoot()) {
+			if (initial->childrenCount > 0 || height == 0) {
+				return;
+			}
+			TNode* newRoot = initial->ptrs[0];
+			newRoot->parent = nullptr;
+			root = newRoot;
+			delete initial;
+			nodes--;
+			height--;
+			return;
+		} 
+
+		uint index = initial->parent->getIndexOf(initial->keys[0]).first;
+		
+		TNode* merge;
+		bool mergeToLeft = true;
+		KeyType mergeKey;
+		if (index == 0) {
+			// get the right 
+			merge = initial->parent->ptrs[1];
+			mergeToLeft = false;
+			mergeKey = initial->parent->keys[0];
+		}
+		else {
+			// get left
+			merge = initial->parent->ptrs[index - 1];
+			mergeKey = initial->parent->keys[index - 1];
+		}
+
+			
+		if (initial->childrenCount + merge->childrenCount <= N) {
+			uint totalChildren = initial->childrenCount + merge->childrenCount;
+			// can fit in a sigle node
+			if (!mergeToLeft) {
+				// PERF: no need to swap the whole array
+				std::swap(initial->ptrs, merge->ptrs);
+				std::swap(initial->keys, merge->keys);
+			}
+
+			if (!initial->isLeaf) {
+				for (uint i = totalChildren - 1; i >= initial->childrenCount; --i) {
+					merge->ptrs[i + 1] = initial->ptrs[i - initial->childrenCount + 1];
+					merge->keys[i] = initial->keys[i - initial->childrenCount];
+				}
+				merge->ptrs[merge->childrenCount] = initial->ptrs[0];
+				merge->keys[merge->childrenCount] = mergeKey;
+			}
+			else {
+				for (uint i = totalChildren - 1; i >= initial->childrenCount; --i) {
+					merge->ptrs[i] = initial->ptrs[i - initial->childrenCount];
+					merge->keys[i] = initial->keys[i - initial->childrenCount];
+				}
+			}
+			merge->childrenCount = totalChildren;
+			deleteEntry(initial->parent, mergeKey, initial);
+			delete initial;
+			nodes--;
+		}
+		else { // redistribute
+
+			if (mergeToLeft) {
+				redistributeBetween(merge, initial, false, mergeKey);
+			}
+			else {
+				redistributeBetween(initial, merge, true, mergeKey);
+			}
+		}
+	}
+
+	DataType* deleteAt(TExactLoc location) {
+		DataType* data = location.leaf->getAsData(location.index);
+		deleteEntry(location.leaf, location.leaf->keys[location.index - 1], location.leaf->ptrs[location.index - 1]);
+		return data;
+	}
 
 	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
 		TExactLoc location = findKey(key);
