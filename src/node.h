@@ -12,30 +12,30 @@ typedef unsigned int uint;
 
 // PERF: check performance vs list
 template<typename ArrayType, std::size_t ArraySize>
-void insertAtArray(std::array<ArrayType, ArraySize>& arr, uint lastIndex, uint location, const ArrayType& elem) {
+void insertAtArray(std::array<ArrayType, ArraySize>& arr, int lastIndex, int location, const ArrayType& elem) {
 	assert(lastIndex < ArraySize);
 	assert(location <= lastIndex);
-	for (uint i = lastIndex; i > location; --i) {
+	for (int i = lastIndex; i > location; --i) {
 		arr[i] = std::move(arr[i - 1]);
 	}
 	arr[location] = elem;
 }
 
 template<typename ArrayType, std::size_t ArraySize>
-void deleteFromArrayAt(std::array<ArrayType, ArraySize>& arr, uint arrSize, uint at) {
+void deleteFromArrayAt(std::array<ArrayType, ArraySize>& arr, int arrSize, int at) {
 	assert(arrSize <= ArraySize);
-	for (uint i = at; i < arrSize - 1; ++i) {
+	for (int i = at; i < arrSize - 1; ++i) {
 		arr[i] = std::move(arr[i + 1]);
 	}
 }
 
 
 template<typename ArrayType, std::size_t ArraySize>
-uint deleteFromArray(std::array<ArrayType, ArraySize>& arr, uint arrSize, const ArrayType& elem) {
+int deleteFromArray(std::array<ArrayType, ArraySize>& arr, int arrSize, const ArrayType& elem) {
 	assert(arrSize <= ArraySize);
 
-	std::pair<uint, bool> foundIndex = { 0, false };
-	for (uint i = 0; i < arrSize; ++i) {
+	std::pair<int, bool> foundIndex = { 0, false };
+	for (int i = 0; i < arrSize; ++i) {
 		if (arr[i] == elem) {
 			foundIndex = { i, true };
 			break;
@@ -50,10 +50,10 @@ uint deleteFromArray(std::array<ArrayType, ArraySize>& arr, uint arrSize, const 
 
 template<typename KeyType, typename DataType, uint N>
 struct Node {
-	typedef std::pair<uint, bool> ElemIndex;
+	typedef std::pair<int, bool> ElemIndex;
 
 	bool isLeaf;
-	uint childrenCount;
+	int childrenCount;
 	Node* parent;
 	// 2 seperate arrays for better cache management, since iterating keys only is frequent.
 	std::array<KeyType, N> keys;
@@ -62,16 +62,16 @@ struct Node {
 	// todo: remove this, it is only here to force the compiler to instanciate these templates
 	// if not instanciated we cannot use them while debugging.
 	void debug() {
-		//keys.data();
-		//ptrs.data();
+		auto a = keys.data();
+		auto b = ptrs.data();
 	}
 
-	uint uid;
+	int uid;
 
 	// this does not resolve to actual struct wide static 
 	// but static for this specific template instantiation
-	static const uint Parity = N % 2;
-	static const uint HN = N / 2 + Parity;
+	static const int Parity = N % 2;
+	static const int HN = N / 2 + Parity;
 
 	Node()
 		: isLeaf(false)
@@ -86,13 +86,13 @@ struct Node {
 		return parent == nullptr;
 	}
 
-	DataType* getAsData(uint index) {
+	DataType* getAsData(int index) {
 		assert(isLeaf);
 		assert(index <= childrenCount);
 		return reinterpret_cast<DataType*>(ptrs[index - 1]);
 	}
 
-	void setAsData(uint index, DataType* data) {
+	void setAsData(int index, DataType* data) {
 		assert(isLeaf);
 		assert(index <= childrenCount);
 		ptrs[index - 1] = reinterpret_cast<Node*>(data);
@@ -115,9 +115,9 @@ struct Node {
 			return ElemIndex(0, false);
 		}
 
-		uint left = 0;
-		uint right = childrenCount - 1;
-		uint middle = 0;
+		int left = 0;
+		int right = childrenCount - 1;
+		int middle = 0;
 
 		while (left <= right) {
 			middle = left + (right - left) / 2;
@@ -138,7 +138,7 @@ struct Node {
 		return ElemIndex(left, false);
 	}
 
-	void insertAtLeaf(uint index, const KeyType& key, DataType* data) {
+	void insertAtLeaf(int index, const KeyType& key, DataType* data) {
 		assert(getIndexOf(key).second == false); // This should not exist.
 		assert(isRoot() || childrenCount >= N / 2);
 		assert(isLeaf);
@@ -148,7 +148,7 @@ struct Node {
 		childrenCount++;
 	}
 
-	void insertAtInternal(uint index, const KeyType& key, Node* node) {
+	void insertAtInternal(int index, const KeyType& key, Node* node) {
 		assert(getIndexOf(key).second == false); // This should not exist.
 		assert(isRoot() || childrenCount + 1 >= N / 2);
 		assert(!isLeaf);
@@ -158,7 +158,7 @@ struct Node {
 		childrenCount++;
 	}
 
-	static Node* splitAndInsertLeaf(Node* initialNode, uint insertIndex, const KeyType& key, DataType* data) {
+	static Node* splitAndInsertLeaf(Node* initialNode, int insertIndex, const KeyType& key, DataType* data) {
 		assert(initialNode->childrenCount == N);
 	
 		Node* rightNode = new Node();
@@ -192,7 +192,7 @@ struct Node {
 	}
 
 	// return "popped" key, the one that gets lost from the split
-	static KeyType splitAndInsertInternal(Node* initialNode, Node*& outNewNode, uint insertIndex, const KeyType& key, Node* ptrInsert) {
+	static KeyType splitAndInsertInternal(Node* initialNode, Node*& outNewNode, int insertIndex, const KeyType& key, Node* ptrInsert) {
 		assert(initialNode->childrenCount == N);
 		assert(ptrInsert);
 
@@ -247,7 +247,7 @@ struct Node {
 			outNewNode->insertAtInternal(insertIndex - HN - 1, key, ptrInsert);
 		}
 		assert(outNewNode->childrenCount >= N / 2);
-		for (uint i = 0; i < outNewNode->childrenCount + 1; ++i) {
+		for (int i = 0; i < outNewNode->childrenCount + 1; ++i) {
 			outNewNode->ptrs[i]->parent = outNewNode;
 		}
 
@@ -256,11 +256,29 @@ struct Node {
 
 	
 	// Returns key index that was deleted
-	uint deleteKeyAndPtr(const KeyType& key, Node* ptr) {
-		const uint pos = deleteFromArray(keys, childrenCount, key);
+	int deleteKeyAndPtr(const KeyType& key, Node* ptr) {
+		const int pos = deleteFromArray(keys, childrenCount, key);
 		deleteFromArray(ptrs, childrenCount + !isLeaf, ptr);
 		childrenCount--;
 		return pos;
+	}
+
+	void moveInfoInplaceInternal(int rangeStart, int rangeEnd, int offset, const KeyType& leftKey) {
+		assert(!isLeaf);
+		assert(rangeEnd <= N);
+		assert(rangeEnd + offset <= N);
+		assert(rangeStart + offset >= 0);
+		assert(offset > 0);
+
+		for (int i = rangeEnd + offset; i >= rangeStart + offset; --i) {
+			if (i - offset - 1 >= 0) {
+				keys[i - 1] = keys[i - offset - 1];
+			}
+			else {
+				keys[i - 1] = leftKey;
+			}
+			ptrs[i] = ptrs[i - offset];
+		}
 	}
 };
 
@@ -269,12 +287,12 @@ struct ExactLoc {
 	typedef Node<KeyType, DataType, N> TNode;
 
 	TNode* leaf;
-	uint index;
+	int index;
 	bool exists;
 
 	ExactLoc() {}
 
-	ExactLoc(TNode* leaf, std::pair<uint, bool> elemIndex)
+	ExactLoc(TNode* leaf, std::pair<int, bool> elemIndex)
 		: leaf(leaf)
 		, index(elemIndex.first)
 		, exists(elemIndex.second) {}
@@ -288,8 +306,8 @@ struct Tree {
 	typedef Node<KeyType, DataType, N> TNode;
 	typedef ExactLoc<KeyType, DataType, N> TExactLoc;
 	
-	static const uint Parity = N % 2;
-	static const uint HN = N / 2 + Parity;
+	static const int Parity = N % 2;
+	static const int HN = N / 2 + Parity;
 
 	TNode* root;
 	
@@ -354,7 +372,7 @@ struct Tree {
 private:
 	// actual implementations
 	TExactLoc findKey(const KeyType& key) const {
-		std::pair<uint, bool> nextLoc;
+		std::pair<int, bool> nextLoc;
 		TNode* nextNode = root;
 
 		while (!nextNode->isLeaf) {
@@ -388,10 +406,10 @@ private:
 			if (smallerLeft) {
 				left->insertAtInternal(left->childrenCount, keyInBetween, right->ptrs[0]);
 
-				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
 				assert(loc.second);
 				parent->keys[loc.first] = std::move(right->keys[0]);
-				
+
 				deleteFromArrayAt(right->ptrs, right->childrenCount + 1, 0);
 				deleteFromArrayAt(right->keys, right->childrenCount, 0);
 				right->childrenCount--;
@@ -399,10 +417,10 @@ private:
 			else {
 				right->insertAtInternal(0, keyInBetween, left->ptrs[left->childrenCount]);
 
-				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
 				assert(loc.second);
 
-				parent->keys[loc.first] = std::move(left->keys[left->childrenCount]);
+				parent->keys[loc.first] = std::move(left->keys[left->childrenCount - 1]);
 
 				left->childrenCount--;
 			}
@@ -411,7 +429,7 @@ private:
 			if (smallerLeft) {
 				left->insertAtLeaf(left->childrenCount, right->keys[0], reinterpret_cast<DataType*>(right->ptrs[0]));
 
-				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
 				assert(loc.second);
 				deleteFromArrayAt(right->ptrs, right->childrenCount, 0);
 				deleteFromArrayAt(right->keys, right->childrenCount, 0);
@@ -422,7 +440,7 @@ private:
 			else {
 				right->insertAtLeaf(0, left->keys[left->childrenCount - 1], reinterpret_cast<DataType*>(left->ptrs[left->childrenCount - 1]));
 
-				std::pair<uint, bool> loc = parent->getIndexOf(keyInBetween);
+				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
 				assert(loc.second);
 
 				parent->keys[loc.first - 1] = std::move(left->keys[left->childrenCount - 1]);
@@ -432,16 +450,29 @@ private:
 		}
 	}
 
+	void updateKey(const KeyType& oldKey, const KeyType& newKey) {
+		TNode* iter = root;
+		std::pair<uint, bool> keyLoc = iter->getIndexOf(oldKey);
+
+		while (!keyLoc.second) {
+			iter = iter->ptrs[keyLoc.first];
+			if (iter->isLeaf) {
+				return;
+			}
+			keyLoc = iter->getIndexOf(oldKey);
+		}
+		iter->keys[keyLoc.first - 1] = newKey;
+	}
+
 	void deleteEntry(TNode* initial, const KeyType& key, TNode* ptr) {
 		assert(initial);
+		KeyType oldKey = key;
+		const int delPos = initial->deleteKeyAndPtr(key, ptr);
 
-		const uint delPos = initial->deleteKeyAndPtr(key, ptr);
 
-		if (initial->childrenCount >= HN) {
+		if (initial->childrenCount + !initial->isLeaf >= HN ) {
 			if (delPos == 0 && initial->isLeaf && !initial->isRoot()) {
-				// update parent to new key
-				uint parentLoc = initial->parent->getIndexOf(key).first;
-				initial->parent->keys[parentLoc - 1] = initial->keys[0];
+				updateKey(oldKey, initial->keys[0]);				
 			}
 			return;
 		}
@@ -459,7 +490,7 @@ private:
 			return;
 		} 
 
-		uint index = initial->parent->getIndexOf(initial->keys[0]).first;
+		int index = initial->parent->getIndexOf(initial->keys[0]).first;
 		
 		TNode* merge;
 		bool mergeToLeft = true;
@@ -476,32 +507,60 @@ private:
 			mergeKey = initial->parent->keys[index - 1];
 		}
 
-			
-		if (initial->childrenCount + merge->childrenCount <= N) {
-			uint totalChildren = initial->childrenCount + merge->childrenCount;
+		if (initial->childrenCount + merge->childrenCount + !initial->isLeaf <= N) {
+			int totalChildren = initial->childrenCount + merge->childrenCount;
 			// can fit in a sigle node
-			if (!mergeToLeft) {
-				// PERF: no need to swap the whole array
-				std::swap(initial->ptrs, merge->ptrs);
-				std::swap(initial->keys, merge->keys);
-			}
+
 
 			if (!initial->isLeaf) {
-				for (uint i = totalChildren - 1; i >= initial->childrenCount; --i) {
-					merge->ptrs[i + 1] = initial->ptrs[i - initial->childrenCount + 1];
-					merge->keys[i] = initial->keys[i - initial->childrenCount];
+				if (!mergeToLeft) {
+					const int leftChildren = initial->childrenCount;
+					const int rightChildren = merge->childrenCount;
+					
+					merge->moveInfoInplaceInternal(0, rightChildren, leftChildren + 1, mergeKey);
+
+					merge->ptrs[0] = initial->ptrs[0];
+					merge->ptrs[0]->parent = merge;
+
+					for (int i = 1; i < leftChildren; ++i) {
+						merge->keys[i] = initial->keys[i];
+						merge->ptrs[i + 1] = initial->ptrs[i + 1];
+						merge->ptrs[i + 1]->parent = merge;
+					}
+					
+					merge->childrenCount = leftChildren + rightChildren + 1;
 				}
-				merge->ptrs[merge->childrenCount] = initial->ptrs[0];
-				merge->keys[merge->childrenCount] = mergeKey;
+				else {
+					const int leftChildren = merge->childrenCount;
+					const int rightChildren = initial->childrenCount;
+
+					merge->keys[leftChildren] = mergeKey;
+					merge->ptrs[leftChildren + 1] = initial->ptrs[0];
+					merge->ptrs[leftChildren + 1]->parent = merge;
+
+					for (int i = 0; i < rightChildren; ++i) {
+						merge->keys[i + leftChildren + 1 ] = initial->keys[i];
+						merge->ptrs[i + leftChildren + 1 + 1] = initial->ptrs[i + 1];
+						merge->ptrs[i + leftChildren + 1 + 1]->parent = merge;
+					}
+					merge->childrenCount = leftChildren + rightChildren + 1;
+				}
 			}
 			else {
-				for (uint i = totalChildren - 1; i >= initial->childrenCount; --i) {
+				if (!mergeToLeft) {
+					// PERF: no need to swap the whole array
+					std::swap(initial->ptrs, merge->ptrs);
+					std::swap(initial->keys, merge->keys);
+				}
+
+				for (int i = totalChildren - 1; i >= initial->childrenCount; --i) {
 					merge->ptrs[i] = initial->ptrs[i - initial->childrenCount];
 					merge->keys[i] = initial->keys[i - initial->childrenCount];
 				}
+				merge->childrenCount = totalChildren;
 			}
-			merge->childrenCount = totalChildren;
 			deleteEntry(initial->parent, mergeKey, initial);
+			updateKey(oldKey, merge->keys[0]);
 			delete initial;
 			nodes--;
 		}
@@ -513,12 +572,14 @@ private:
 			else {
 				redistributeBetween(initial, merge, true, mergeKey);
 			}
+			updateKey(oldKey, initial->keys[0]);
 		}
 	}
 
 	DataType* deleteAt(TExactLoc location) {
 		DataType* data = location.leaf->getAsData(location.index);
 		deleteEntry(location.leaf, location.leaf->keys[location.index - 1], location.leaf->ptrs[location.index - 1]);
+		elementCount--;
 		return data;
 	}
 
@@ -568,7 +629,7 @@ private:
 		TNode* parent = leftNode->parent;
 
 		// PERF: maybe cache something to avoid searching in the parent again? Path from root in first search down?
-		std::pair<uint, bool> insertLoc = parent->getIndexOf(rightMinKey);
+		std::pair<int, bool> insertLoc = parent->getIndexOf(rightMinKey);
 		assert(insertLoc.second == false);
 		
 		if (parent->childrenCount < N) {
@@ -611,7 +672,7 @@ public:
 				}
 			}
 
-			for (uint i = 0; i < node->childrenCount + 1; ++i) {
+			for (int i = 0; i < node->childrenCount + 1; ++i) {
 				if (node->ptrs[i]->parent != node) {
 					std::cerr << "found incorrect node!\n";
 					dot_print_node(node);
@@ -644,7 +705,7 @@ public:
 			if (!node->isLeaf) {
 				out << "<f" << 0 << "> # |";
 			}
-			for (uint i = 0; i < N; ++i) {
+			for (int i = 0; i < N; ++i) {
 				if (i < node->childrenCount) {
 					if (!node->isLeaf) {
 						out << "<f" << i+1 << "> " << node->keys[i] << "|";
@@ -662,7 +723,7 @@ public:
 			out << "\"];" << nl;
 
 			if (!node->isLeaf) {
-				for (uint i = 0; i < node->childrenCount + 1; ++i) {
+				for (int i = 0; i < node->childrenCount + 1; ++i) {
 					print_info(node->ptrs[i]);
 				}
 			}
@@ -672,7 +733,7 @@ public:
 
 		print_conn = [&](TNode* node) -> void {
 			if (!node->isLeaf) {
-				for (uint i = 0; i < node->childrenCount + 1; ++i) {
+				for (int i = 0; i < node->childrenCount + 1; ++i) {
 					out << "\"node_id" << node->uid << "\":f" << i << " -> ";
 					out << "node_id" << node->ptrs[i]->uid << ";" << nl;
 					print_conn(node->ptrs[i]);
