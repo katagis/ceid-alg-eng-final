@@ -158,6 +158,12 @@ struct Node {
 		childrenCount++;
 	}
 
+	void replaceKey(const KeyType& from, const KeyType& to) {
+		std::pair<uint, bool> loc = getIndexOf(from);
+		assert(loc.second);
+		keys[loc.first] = to;
+	}
+
 	static Node* splitAndInsertLeaf(Node* initialNode, int insertIndex, const KeyType& key, DataType* data) {
 		assert(initialNode->childrenCount == N);
 	
@@ -455,9 +461,7 @@ private:
 				if (loc.second) {
 					parent->keys[loc.first - 1] = std::move(right->keys[0]);
 				}
-				else {
-					updateKey(keyInBetween, right->keys[0]);
-				}
+
 				
 				right->childrenCount--;
 			}
@@ -468,16 +472,13 @@ private:
 				if (loc.second) {
 					parent->keys[loc.first - 1] = std::move(left->keys[left->childrenCount - 1]);
 				}
-				else {
-					updateKey(keyInBetween, left->keys[left->childrenCount - 1]);
-				}
 
 				left->childrenCount--;
 			}
 		}
 	}
 
-	void updateKey(const KeyType& oldKey, const KeyType& newKey) {
+	/*void updateKey(const KeyType& oldKey, const KeyType& newKey) {
 		if (root->isLeaf) {
 			return;
 		}
@@ -493,7 +494,7 @@ private:
 			keyLoc = iter->getIndexOf(oldKey);
 		}
 		iter->keys[keyLoc.first - 1] = newKey;
-	}
+	}*/
 
 	void deleteEntry(TNode* initial, const KeyType& key, TNode* ptr) {
 		assert(initial);
@@ -516,7 +517,7 @@ private:
 		if (initial->isLeaf) {
 			if (initial->childrenCount >= HN) {
 				if (delPos == 0) {
-					updateKey(oldKey, initial->keys[0]);
+					//updateKey(oldKey, initial->keys[0]);
 				}
 				return;
 			}
@@ -606,9 +607,9 @@ private:
 				}
 			}
 			deleteEntry(initial->parent, mergeKey, initial);
-			if (!merge->isRoot()) {
-				updateKey(oldKey, merge->keys[0]);
-			}
+			//if (!merge->isRoot()) {
+			//	updateKey(oldKey, merge->keys[0]);
+			//}
 			delete initial;
 			nodes--;
 		}
@@ -620,7 +621,7 @@ private:
 				else {
 					redistributeBetween(initial, merge, true, mergeKey);
 				}
-				updateKey(oldKey, initial->keys[0]);
+				//updateKey(oldKey, initial->keys[0]);
 			}
 			else {
 				bool shouldRedistribute = std::abs(initial->childrenCount - merge->childrenCount) > 1;
@@ -632,7 +633,7 @@ private:
 					else {
 						redistributeBetween(initial, merge, true, mergeKey);
 					}
-					updateKey(oldKey, initial->keys[0]);
+					//updateKey(oldKey, initial->keys[0]);
 				}
 			}
 		}
@@ -724,14 +725,14 @@ public:
 			}
 
 
-			for (int i = 0; i < node->childrenCount; ++i) {
+			/*for (int i = 0; i < node->childrenCount; ++i) {
 				if (!this->get(node->keys[i])) {
 					std::cerr << "found incorrect node reference :" << node->keys[i] << std::endl;
 					dot_print_node(node);
 					dot_print();
 					getchar();
 				}
-			}
+			}*/
 
 			if (node->childrenCount >= 1) {
 				if (node->ptrs[0] == node->ptrs[1]) {

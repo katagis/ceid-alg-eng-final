@@ -15,7 +15,7 @@ void main2() {
 
 
 
-	for (int i = 0; i < 50; ++i) {
+	for (int i = 0; i < 500; ++i) {
 		int* number = new int(std::rand() % 10000);
 		bool didInsert = set.insert(*number).second;
 		tree.maybe_add(*number, number);
@@ -35,7 +35,7 @@ void main2() {
 		}
 
 
-		tree.dot_print();
+		//tree.dot_print();
 		std::cerr << "removing: " << i << std::endl;
 
 
