@@ -140,7 +140,7 @@ struct Node {
 
 	void insertAtLeaf(int index, const KeyType& key, DataType* data) {
 		assert(getIndexOf(key).second == false); // This should not exist.
-		assert(isRoot() || childrenCount >= N / 2);
+		assert(isRoot() || childrenCount + 1 >= N / 2);
 		assert(isLeaf);
 
 		insertAtArray(keys, childrenCount, index, key);
@@ -150,7 +150,7 @@ struct Node {
 
 	void insertAtInternal(int index, const KeyType& key, Node* node) {
 		assert(getIndexOf(key).second == false); // This should not exist.
-		assert(isRoot() || childrenCount + 1 >= N / 2);
+		//assert(isRoot() || childrenCount + 1 >= N / 2);
 		assert(!isLeaf);
 
 		insertAtArray(keys, childrenCount, index, key);
@@ -280,6 +280,18 @@ struct Node {
 			ptrs[i] = ptrs[i - offset];
 		}
 	}
+
+	void moveInfoInplaceLeaf(int rangeStart, int rangeEnd, int offset) {
+		assert(rangeEnd < N);
+		assert(rangeEnd + offset < N);
+		assert(rangeStart + offset >= 0);
+		assert(offset > 0);
+
+		for (int i = rangeEnd + offset; i >= rangeStart + offset; --i) {
+			keys[i] = keys[i - offset];
+			ptrs[i] = ptrs[i - offset];
+		}
+	}
 };
 
 template<typename KeyType, typename DataType, uint N>
@@ -393,6 +405,7 @@ private:
 	void redistributeBetween(TNode* left, TNode* right, bool smallerLeft, const KeyType& keyInBetween) {
 		assert(left->keys[0] < right->keys[0]);
 		assert(keyInBetween <= right->keys[0]);
+		
 
 		if (smallerLeft) {
 			assert(left->childrenCount < right->childrenCount);
@@ -405,40 +418,21 @@ private:
 		if (!left->isLeaf) {
 			if (smallerLeft) {
 				left->insertAtInternal(left->childrenCount, keyInBetween, right->ptrs[0]);
+				left->ptrs[left->childrenCount]->parent = left;
 
 				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
 				assert(loc.second);
-				parent->keys[loc.first] = std::move(right->keys[0]);
+				parent->keys[loc.first - 1] = std::move(right->keys[0]);
 
 				deleteFromArrayAt(right->ptrs, right->childrenCount + 1, 0);
 				deleteFromArrayAt(right->keys, right->childrenCount, 0);
 				right->childrenCount--;
 			}
 			else {
-				right->insertAtInternal(0, keyInBetween, left->ptrs[left->childrenCount]);
-
-				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
-				assert(loc.second);
-
-				parent->keys[loc.first] = std::move(left->keys[left->childrenCount - 1]);
-
-				left->childrenCount--;
-			}
-		}
-		else {
-			if (smallerLeft) {
-				left->insertAtLeaf(left->childrenCount, right->keys[0], reinterpret_cast<DataType*>(right->ptrs[0]));
-
-				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
-				assert(loc.second);
-				deleteFromArrayAt(right->ptrs, right->childrenCount, 0);
-				deleteFromArrayAt(right->keys, right->childrenCount, 0);
-
-				parent->keys[loc.first - 1] = std::move(right->keys[0]);
-				right->childrenCount--;
-			}
-			else {
-				right->insertAtLeaf(0, left->keys[left->childrenCount - 1], reinterpret_cast<DataType*>(left->ptrs[left->childrenCount - 1]));
+				insertAtArray(right->keys, right->childrenCount, 0, keyInBetween);
+				insertAtArray(right->ptrs, right->childrenCount + 1, 0, left->ptrs[left->childrenCount]);
+				right->childrenCount++;
+				right->ptrs[0]->parent = right;
 
 				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
 				assert(loc.second);
@@ -448,15 +442,52 @@ private:
 				left->childrenCount--;
 			}
 		}
+		else {
+			if (smallerLeft) {
+				left->insertAtLeaf(left->childrenCount, right->keys[0], reinterpret_cast<DataType*>(right->ptrs[0]));
+
+				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
+				
+				deleteFromArrayAt(right->ptrs, right->childrenCount, 0);
+				deleteFromArrayAt(right->keys, right->childrenCount, 0);
+
+
+				if (loc.second) {
+					parent->keys[loc.first - 1] = std::move(right->keys[0]);
+				}
+				else {
+					updateKey(keyInBetween, right->keys[0]);
+				}
+				
+				right->childrenCount--;
+			}
+			else {
+				right->insertAtLeaf(0, left->keys[left->childrenCount - 1], reinterpret_cast<DataType*>(left->ptrs[left->childrenCount - 1]));
+
+				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
+				if (loc.second) {
+					parent->keys[loc.first - 1] = std::move(left->keys[left->childrenCount - 1]);
+				}
+				else {
+					updateKey(keyInBetween, left->keys[left->childrenCount - 1]);
+				}
+
+				left->childrenCount--;
+			}
+		}
 	}
 
 	void updateKey(const KeyType& oldKey, const KeyType& newKey) {
+		if (root->isLeaf) {
+			return;
+		}
 		TNode* iter = root;
 		std::pair<uint, bool> keyLoc = iter->getIndexOf(oldKey);
 
 		while (!keyLoc.second) {
 			iter = iter->ptrs[keyLoc.first];
 			if (iter->isLeaf) {
+				//std::cerr << "Could not udpate key: " << oldKey << " to: " << newKey << std::endl;
 				return;
 			}
 			keyLoc = iter->getIndexOf(oldKey);
@@ -469,14 +500,6 @@ private:
 		KeyType oldKey = key;
 		const int delPos = initial->deleteKeyAndPtr(key, ptr);
 
-
-		if (initial->childrenCount + !initial->isLeaf >= HN ) {
-			if (delPos == 0 && initial->isLeaf && !initial->isRoot()) {
-				updateKey(oldKey, initial->keys[0]);				
-			}
-			return;
-		}
-
 		if (initial->isRoot()) {
 			if (initial->childrenCount > 0 || height == 0) {
 				return;
@@ -488,7 +511,16 @@ private:
 			nodes--;
 			height--;
 			return;
-		} 
+		}
+
+		if (initial->isLeaf) {
+			if (initial->childrenCount >= HN) {
+				if (delPos == 0) {
+					updateKey(oldKey, initial->keys[0]);
+				}
+				return;
+			}
+		}
 
 		int index = initial->parent->getIndexOf(initial->keys[0]).first;
 		
@@ -507,7 +539,16 @@ private:
 			mergeKey = initial->parent->keys[index - 1];
 		}
 
-		if (initial->childrenCount + merge->childrenCount + !initial->isLeaf <= N) {
+
+
+		bool CanMerge = initial->childrenCount + merge->childrenCount <= N;
+
+		if (!initial->isLeaf) {
+			CanMerge = initial->childrenCount + 1 
+				       + merge->childrenCount + 1 <= N + 1;
+		}
+
+		if (CanMerge) {
 			int totalChildren = initial->childrenCount + merge->childrenCount;
 			// can fit in a sigle node
 
@@ -522,7 +563,7 @@ private:
 					merge->ptrs[0] = initial->ptrs[0];
 					merge->ptrs[0]->parent = merge;
 
-					for (int i = 1; i < leftChildren; ++i) {
+					for (int i = 0; i < leftChildren; ++i) {
 						merge->keys[i] = initial->keys[i];
 						merge->ptrs[i + 1] = initial->ptrs[i + 1];
 						merge->ptrs[i + 1]->parent = merge;
@@ -548,31 +589,52 @@ private:
 			}
 			else {
 				if (!mergeToLeft) {
-					// PERF: no need to swap the whole array
-					std::swap(initial->ptrs, merge->ptrs);
-					std::swap(initial->keys, merge->keys);
-				}
+					merge->moveInfoInplaceLeaf(0, merge->childrenCount - 1, initial->childrenCount);
 
-				for (int i = totalChildren - 1; i >= initial->childrenCount; --i) {
-					merge->ptrs[i] = initial->ptrs[i - initial->childrenCount];
-					merge->keys[i] = initial->keys[i - initial->childrenCount];
+					for (int i = 0; i < initial->childrenCount; ++i) {
+						merge->ptrs[i] = initial->ptrs[i];
+						merge->keys[i] = initial->keys[i];
+					}
+					merge->childrenCount = totalChildren;
 				}
-				merge->childrenCount = totalChildren;
+				else {
+					for (int i = totalChildren - 1; i >= merge->childrenCount; --i) {
+						merge->ptrs[i] = initial->ptrs[i - merge->childrenCount];
+						merge->keys[i] = initial->keys[i - merge->childrenCount];
+					}
+					merge->childrenCount = totalChildren;
+				}
 			}
 			deleteEntry(initial->parent, mergeKey, initial);
-			updateKey(oldKey, merge->keys[0]);
+			if (!merge->isRoot()) {
+				updateKey(oldKey, merge->keys[0]);
+			}
 			delete initial;
 			nodes--;
 		}
 		else { // redistribute
-
-			if (mergeToLeft) {
-				redistributeBetween(merge, initial, false, mergeKey);
+			if (initial->isLeaf) {
+				if (mergeToLeft) {
+					redistributeBetween(merge, initial, false, mergeKey);
+				}
+				else {
+					redistributeBetween(initial, merge, true, mergeKey);
+				}
+				updateKey(oldKey, initial->keys[0]);
 			}
 			else {
-				redistributeBetween(initial, merge, true, mergeKey);
+				bool shouldRedistribute = std::abs(initial->childrenCount - merge->childrenCount) > 1;
+
+				if (shouldRedistribute) {
+					if (mergeToLeft) {
+						redistributeBetween(merge, initial, false, mergeKey);
+					}
+					else {
+						redistributeBetween(initial, merge, true, mergeKey);
+					}
+					updateKey(oldKey, initial->keys[0]);
+				}
 			}
-			updateKey(oldKey, initial->keys[0]);
 		}
 	}
 
@@ -652,8 +714,23 @@ public:
 		std::function<void(TNode*)> for_node;
 
 		for_node = [&](TNode* node) -> void {
+			if (node->childrenCount < 0 || node->childrenCount > N) {
+				std::cerr << "found incorrect children count!\n";
+				getchar();
+			}
+
 			if (node->isLeaf) {
 				return;
+			}
+
+
+			for (int i = 0; i < node->childrenCount; ++i) {
+				if (!this->get(node->keys[i])) {
+					std::cerr << "found incorrect node reference :" << node->keys[i] << std::endl;
+					dot_print_node(node);
+					dot_print();
+					getchar();
+				}
 			}
 
 			if (node->childrenCount >= 1) {
@@ -666,7 +743,7 @@ public:
 
 			if (node->childrenCount >= 2) {
 				if (node->keys[0] > node->keys[1]) {
-					dot_print_node(node);
+					this->dot_print();
 					std::cerr << "found key error!\n";
 					getchar();
 				}
