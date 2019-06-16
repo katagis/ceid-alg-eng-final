@@ -123,7 +123,7 @@ void testAll(int seed) {
 	std::srand(seed);
 
 	for (int i = 0; i < Size; ++i) {
-		int* number = new int(std::rand() % 15000);
+		int* number = new int(std::rand() % 8000);
 		bool didInsert = set.insert(*number).second;
 		REQUIRE(tree.maybe_add(*number, number) == didInsert);
 		if (!didInsert) {
@@ -140,7 +140,7 @@ void testAll(int seed) {
 	
 	for (int n = 0; n < Size; ++n) {
 		for (int i = 0; i < Size/5; ++i) {
-			int* number = new int(std::rand() % 15000);
+			int* number = new int(std::rand() % 8000);
 			bool didInsert = set.insert(*number).second;
 			REQUIRE(tree.maybe_add(*number, number) == didInsert);
 			if (!didInsert) {
@@ -149,7 +149,7 @@ void testAll(int seed) {
 		}
 
 		for (int i = 0; i < Size/3; ++i) {
-			int number = std::rand() % 15000;
+			int number = std::rand() % 8000;
 			bool setDidDelete = set.erase(number) > 0;
 			if (!setDidDelete) {
 				continue;
@@ -165,7 +165,6 @@ void testAll(int seed) {
 					int* found = tree.get(znumber);
 					if (!found) {
 						std::cerr << znumber << " failed @" << i << " after deleting: " << number << std::endl;
-						//tree.dot_print();
 						getchar();
 						break;
 					}
@@ -185,7 +184,7 @@ void testAll(int seed) {
 		REQUIRE((found && *found == number));
 	}
 
-	for (int number = 0; number < 15000; ++number) {
+	for (int number = 0; number < 8000; ++number) {
 		bool didDelete = set.erase(number) > 0;
 		int* deleted = tree.removePop(number);
 
@@ -198,10 +197,10 @@ void testAll(int seed) {
 }
 
 TEST_CASE("test No verify 3,4,5,6", "[tree]") {
-	testAll<3, false, 5000>(3);
-	testAll<4, false, 5000>(3);
-	//testAll<5, false, 5000>(3);
-	//testAll<6, false, 5000>(4);
+	testAll<3, false, 1000>(1);
+	testAll<4, false, 1000>(2);
+	testAll<5, false, 1000>(3);
+	testAll<6, false, 1000>(4);
 }
 
 

@@ -628,10 +628,10 @@ private:
 
 				if (shouldRedistribute) {
 					if (mergeToLeft) {
-						redistributeBetween(merge, initial, false, mergeKey);
+						redistributeBetween(merge, initial, merge->childrenCount < initial->childrenCount, mergeKey);
 					}
 					else {
-						redistributeBetween(initial, merge, true, mergeKey);
+						redistributeBetween(initial, merge, initial->childrenCount < merge->childrenCount, mergeKey);
 					}
 					//updateKey(oldKey, initial->keys[0]);
 				}
