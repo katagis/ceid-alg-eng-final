@@ -1,15 +1,21 @@
 #include <iostream>
+#include "testbench.h"
+
+AggregateTimer Timer;
+#define NDEBUG
 #include "node.h"
+
 #include <unordered_set>
 
 #ifndef _TESTS
 
 #include <LEDA/core/impl/ab_tree.h>
 #include <LEDA/core/dictionary.h>
-#include "testbench.h"
 
 
-constexpr int NodeSize = 128;
+
+//constexpr int NodeSize = 338; // blocksize
+constexpr int NodeSize = 16;
 
 using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
 using ImplTree = Tree<int, int, NodeSize>;
@@ -76,12 +82,11 @@ void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 }
 
 void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
-
+	
 	std::vector<int> numbers;
 	for (int i = 0; i < N; ++i) {
 		numbers.push_back(std::rand() % ModCount);
 	}
-
 	std::srand(seed);
 	bench.StartTest();
 	for (int number : numbers) {
@@ -102,7 +107,8 @@ void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 int main() {
 	LedaTree ledaDic(NodeSize / 2, NodeSize);
 	ImplTree implDic;
-
+	std::cout << "Memory size of Node: " << sizeof(ImplTree::TNode) << "\n";
+#ifndef _DEBUG
 	add_test	(ledaDic, implDic, 2000000, 0);
 	delete_test (ledaDic, implDic, 1000000, 11);
 	get_test	(ledaDic, implDic, 2000000, 1);
@@ -117,8 +123,16 @@ int main() {
 	delete_test (ledaDic, implDic, 1000000, 10);
 	delete_test	(ledaDic, implDic, 1000000, 0);
 	get_test	(ledaDic, implDic, 1000000, 0);
+#else // in debug just run some basic stuff because all the tests take too much time
+	add_test(ledaDic, implDic, 2000000, 0);
+	delete_test(ledaDic, implDic, 1000000, 11);
+	get_test(ledaDic, implDic, 2000000, 1);
+#endif
 
 	bench.Print();
+
+
+	Timer.Print("Generic Timer");
 
 	return 0;
 }

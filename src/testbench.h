@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <vector>
+#include <array>
 #include <iomanip>
 #include <cmath>
 #include <algorithm>
@@ -105,12 +106,10 @@ public:
 	// Internal,  formats and prints a line with 2 times and their difference.
 	void PrintBenchLine(const std::string& Title, TestData Impl, TestData Leda) {
 		static std::string TimestepStr = " micros";
+
 		std::cout << std::right;
 		std::cout << "# " << std::setw(11) << std::left << Title << " Impl: " << std::right << std::setw(7) << Impl.Time << TimestepStr << " | "
 			"LEDA: " << std::setw(7) << Leda.Time << TimestepStr << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << "\n";
-
-				 
-		
 	}
 
 public:
@@ -169,5 +168,69 @@ public:
 		PrintBenchLine("Del: ", ImplPerType[to_underlying(TestType::Del)], LedaPerType[to_underlying(TestType::Del)]);
 	}
 };
+
+struct dotted : std::numpunct<char> {
+	char do_thousands_sep()   const { 
+		return '.'; 
+	} 
+
+	std::string do_grouping() const { 
+		return "\3"; 
+	}
+
+	static void imbue(std::ostream& os) {
+		os.imbue(std::locale(os.getloc(), new dotted));
+	}
+
+	static std::string str(long long Value) {
+		std::stringstream ss;
+		dotted::imbue(ss);
+		ss << Value;
+		return ss.str();
+	}
+};
+
+struct AggregateTimer {
+	long long totalNanos;
+	long long timesHit;
+
+	ch::time_point<ch::system_clock> StartTime;
+
+	void Start() {
+		timesHit++;
+		StartTime = ch::system_clock::now();
+	}
+
+	void Stop() {
+		totalNanos += GetCurrent();
+	}
+
+	long long GetCurrent() const {
+		return ch::duration_cast<ch::nanoseconds>(ch::system_clock::now() - StartTime).count();
+	}
+
+	void Print(const std::string& Title) const {
+		if (timesHit == 0) {
+			return;
+		}
+		std::cout << "Timer # " << std::setw(12) << Title << " hits: " << std::setw(10) << dotted::str(timesHit) 
+			<< " | " << std::setw(16) << dotted::str(totalNanos) << "ns ( avg:" << std::setw(11) 
+			<< dotted::str(totalNanos / timesHit) << "ns )\n";
+	}
+
+	struct Scope {
+		AggregateTimer& timer;
+		Scope(AggregateTimer& parent)
+			: timer(parent) {
+			timer.Start();
+		}
+
+		~Scope() {
+			timer.Stop();
+		}
+	};
+};
+
+
 
 #endif //__TESTBENCH_H_

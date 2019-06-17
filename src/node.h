@@ -29,7 +29,6 @@ void deleteFromArrayAt(std::array<ArrayType, ArraySize>& arr, int arrSize, int a
 	}
 }
 
-
 template<typename ArrayType, std::size_t ArraySize>
 int deleteFromArray(std::array<ArrayType, ArraySize>& arr, int arrSize, const ArrayType& elem) {
 	assert(arrSize <= ArraySize);
@@ -46,7 +45,6 @@ int deleteFromArray(std::array<ArrayType, ArraySize>& arr, int arrSize, const Ar
 	deleteFromArrayAt(arr, arrSize, foundIndex.first);
 	return foundIndex.first;
 }
-
 
 template<typename KeyType, typename DataType, uint N>
 struct Node {
@@ -98,8 +96,13 @@ struct Node {
 		ptrs[index - 1] = reinterpret_cast<Node*>(data);
 	}
 
-	ElemIndex getIndexOf(const KeyType& key) {
-		
+	DataType* getNextLeaf() {
+		assert(isLeaf);
+		return ptrs[N];
+	}
+
+	ElemIndex getIndexOf(const KeyType& key) const {
+
 		// binary search here, with range from 0 -> childrenCount;
 		//
 		// example shape:
@@ -123,7 +126,7 @@ struct Node {
 			middle = left + (right - left) / 2;
 			
 			if (key == keys[middle]) {
-				return ElemIndex(middle + 1, true);
+				return	ElemIndex(middle + 1, true);
 			}
 
 			if (key > keys[middle]) {
@@ -158,12 +161,6 @@ struct Node {
 		childrenCount++;
 	}
 
-	void replaceKey(const KeyType& from, const KeyType& to) {
-		std::pair<uint, bool> loc = getIndexOf(from);
-		assert(loc.second);
-		keys[loc.first] = to;
-	}
-
 	static Node* splitAndInsertLeaf(Node* initialNode, int insertIndex, const KeyType& key, DataType* data) {
 		assert(initialNode->childrenCount == N);
 	
@@ -182,6 +179,7 @@ struct Node {
 			initialNode->insertAtLeaf(insertIndex, key, data);
 		}
 		else {
+
 			// PERF: for now we do the same as above,
 			// this moves some items 2 times and can be optimised
 			
@@ -206,6 +204,7 @@ struct Node {
 		outNewNode = new Node();
 
 		if (insertIndex < HN) {
+
 			// Our element is in the left node
 
 			// PERF: split loops for better cache
@@ -263,6 +262,8 @@ struct Node {
 	
 	// Returns key index that was deleted
 	int deleteKeyAndPtr(const KeyType& key, Node* ptr) {
+		// PERF: Delete: 24ms. 
+		// Can leave empty stuff and fix it during later stages (eg redistribution or even node delete)
 		const int pos = deleteFromArray(keys, childrenCount, key);
 		deleteFromArray(ptrs, childrenCount + !isLeaf, ptr);
 		childrenCount--;
@@ -390,12 +391,13 @@ struct Tree {
 private:
 	// actual implementations
 	TExactLoc findKey(const KeyType& key) const {
+		AggregateTimer::Scope _(Timer);
 		std::pair<int, bool> nextLoc;
 		TNode* nextNode = root;
 
 		while (!nextNode->isLeaf) {
-			 nextLoc = nextNode->getIndexOf(key);
-			 nextNode = nextNode->ptrs[nextLoc.first];
+			nextLoc = nextNode->getIndexOf(key);
+			nextNode = nextNode->ptrs[nextLoc.first];
 		}
 		nextLoc = nextNode->getIndexOf(key);
 		return TExactLoc(nextNode, nextLoc);
@@ -409,6 +411,7 @@ private:
 
 	
 	void redistributeBetween(TNode* left, TNode* right, bool smallerLeft, const KeyType& keyInBetween) {
+
 		assert(left->keys[0] < right->keys[0]);
 		assert(keyInBetween <= right->keys[0]);
 		
@@ -478,24 +481,6 @@ private:
 		}
 	}
 
-	/*void updateKey(const KeyType& oldKey, const KeyType& newKey) {
-		if (root->isLeaf) {
-			return;
-		}
-		TNode* iter = root;
-		std::pair<uint, bool> keyLoc = iter->getIndexOf(oldKey);
-
-		while (!keyLoc.second) {
-			iter = iter->ptrs[keyLoc.first];
-			if (iter->isLeaf) {
-				//std::cerr << "Could not udpate key: " << oldKey << " to: " << newKey << std::endl;
-				return;
-			}
-			keyLoc = iter->getIndexOf(oldKey);
-		}
-		iter->keys[keyLoc.first - 1] = newKey;
-	}*/
-
 	void deleteEntry(TNode* initial, const KeyType& key, TNode* ptr) {
 		assert(initial);
 		KeyType oldKey = key;
@@ -550,6 +535,7 @@ private:
 		}
 
 		if (CanMerge) {
+
 			int totalChildren = initial->childrenCount + merge->childrenCount;
 			// can fit in a sigle node
 
@@ -614,6 +600,7 @@ private:
 			nodes--;
 		}
 		else { // redistribute
+
 			if (initial->isLeaf) {
 				if (mergeToLeft) {
 					redistributeBetween(merge, initial, false, mergeKey);
@@ -723,16 +710,6 @@ public:
 			if (node->isLeaf) {
 				return;
 			}
-
-
-			/*for (int i = 0; i < node->childrenCount; ++i) {
-				if (!this->get(node->keys[i])) {
-					std::cerr << "found incorrect node reference :" << node->keys[i] << std::endl;
-					dot_print_node(node);
-					dot_print();
-					getchar();
-				}
-			}*/
 
 			if (node->childrenCount >= 1) {
 				if (node->ptrs[0] == node->ptrs[1]) {
