@@ -17,30 +17,44 @@ namespace ch = std::chrono;
 #include <sys/time.h>
 #endif
 
+enum class TestType : int {
+	Add = 0,
+	Get,
+	Del,
+	Iterate,
+	E_LAST
+};
+
+template<typename E>
+constexpr auto to_underlying(E e) noexcept {
+	return static_cast<std::underlying_type_t<E>>(e);
+}
+constexpr size_t TestTypeN = to_underlying(TestType::E_LAST);
+
+struct TestInfo {
+	TestType type;
+	int LeafSize;
+};
 
 // All the data our Benchmark should store for 1 test.
 struct TestData {
 	long long Time;
-	int Steps;
+
+	int testsIncluded;
 
 	TestData() 
-		: Time(0)
-		, Steps(0) {}
+		: Time(0) {}
 
-	TestData(long long time, int steps)
-		: Time(time)
-		, Steps(steps) {}
+	TestData(long long time)
+		: Time(time) {}
 };
 
 void operator+=(TestData& rhs, const TestData& lhs) {
 	rhs.Time += lhs.Time;
-	rhs.Steps += lhs.Steps;
+	rhs.testsIncluded++;
 }
 
 bool operator<(TestData& rhs, const TestData& lhs) {
-	if (rhs.Time == lhs.Time) {
-		return rhs.Steps < lhs.Steps;
-	}
 	return rhs.Time < lhs.Time;
 }
 
@@ -50,8 +64,9 @@ bool operator<(TestData& rhs, const TestData& lhs) {
 struct Benchmark {
 
 private:
-	std::vector<TestData> DijkTime;
-	std::vector<TestData> AstarTime;
+	std::vector<TestData> ImplTime;
+	std::vector<TestData> LedaTime;
+	std::vector<TestInfo> tests;
 
 #ifdef USE_CHRONO
 	ch::time_point<ch::system_clock> StartTime;
@@ -88,64 +103,70 @@ private:
 public:
 
 	// Internal,  formats and prints a line with 2 times and their difference.
-	void PrintBenchLine(TestData DijkT, TestData AstarT) {
+	void PrintBenchLine(const std::string& Title, TestData Impl, TestData Leda) {
 		static std::string TimestepStr = " micros";
 		std::cout << std::right;
-		std::cout << "\n\t| Dijk: " << std::setw(7) << DijkT.Time << TimestepStr << " | " << std::setw(3) << DijkT.Steps << " steps"
-				 << "\n\t| A*  : " << std::setw(7) << AstarT.Time << TimestepStr << " | " << std::setw(3) << AstarT.Steps << " steps";
+		std::cout << "# " << std::setw(11) << std::left << Title << " Impl: " << std::right << std::setw(7) << Impl.Time << TimestepStr << " | "
+			"LEDA: " << std::setw(7) << Leda.Time << TimestepStr << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << "\n";
 
-		long long Hi = std::max(DijkT.Time, AstarT.Time);
-		long long Lo = std::max(std::min(DijkT.Time, AstarT.Time), 1LL);
+				 
 		
-		int Percent = (int)std::floor(((float)Hi / Lo) * 100.f + 0.5f) - 100;
-		long long AbsDiff = Hi - Lo;
-
-		std::string Who = DijkT < AstarT ? "Dijk" : "A* ";
-		std::cout << "\n\t| " << Who << " is faster by: " << std::setw(3) << Percent << "% ( " << AbsDiff << TimestepStr << " ) A* did " << (DijkT.Steps - AstarT.Steps) << " less steps.\n" ;
 	}
 
 public:
 
 	void Reset() {
-		DijkTime.clear();
-		AstarTime.clear();
+		ImplTime.clear();
+		LedaTime.clear();
 	}
 
 	void StartTest() {
 		RestartTimer();
 	}
 
-	// The Dijkstra test has finished
-	// does not start the timer instantly.
-	void SwitchTest(int Steps) {
+	void SwitchTest() {
 		long long Duration = GetCurrent();
-		DijkTime.push_back(TestData(Duration, Steps));
+		LedaTime.push_back(TestData(Duration));
 	}
 
-    void StopTest(int Steps) {
+    void StopTest() {
 		long long Duration = GetCurrent();
-		AstarTime.push_back(TestData(Duration, Steps));
+		ImplTime.push_back(TestData(Duration));
 	}
 
 	// Print the last added test.
-	void PrintLast() {
-		size_t Index = DijkTime.size() - 1;
-		PrintBenchLine(DijkTime[Index], AstarTime[Index]);
+	void PrintLast(TestInfo info, const std::string& Title) {
+		tests.push_back(info);
+		size_t Index = ImplTime.size() - 1;
+		PrintBenchLine(Title, ImplTime[Index], LedaTime[Index]);
 	}
 
 	// Calculate and print total stats.
 	void Print() {
         bool ContainsInvalidResult = false;
-		TestData DijkTotal;
-		TestData AstarTotal;
-		for (int i = 0; i < DijkTime.size(); ++i) {
-			DijkTotal += DijkTime[i];
-			AstarTotal += AstarTime[i];
+		TestData ImplTotal;
+		TestData LedaTotal;
+
+		std::array<TestData, TestTypeN> ImplPerType;
+		std::array<TestData, TestTypeN> LedaPerType;
+		
+
+		for (int i = 0; i < ImplTime.size(); ++i) {
+			ImplTotal += ImplTime[i];
+			LedaTotal += LedaTime[i];
+
+			ImplPerType[to_underlying(tests[i].type)] += ImplTime[i];
+			LedaPerType[to_underlying(tests[i].type)] += LedaTime[i];
 		}
 
-		std::cout << "Totals:";
-		PrintBenchLine(DijkTotal, AstarTotal);
-        std::cout << "\n";
+
+
+		std::cout << "\n";
+		PrintBenchLine("Totals: ", ImplTotal, LedaTotal);
+
+		PrintBenchLine("Get: ", ImplPerType[to_underlying(TestType::Get)], LedaPerType[to_underlying(TestType::Get)]);
+		PrintBenchLine("Add: ", ImplPerType[to_underlying(TestType::Add)], LedaPerType[to_underlying(TestType::Add)]);
+		PrintBenchLine("Del: ", ImplPerType[to_underlying(TestType::Del)], LedaPerType[to_underlying(TestType::Del)]);
 	}
 };
 

@@ -4,109 +4,122 @@
 
 #ifndef _TESTS
 
-
-#define INS(i) tree.set(i, new int(i)); set.insert(i)
-void main2() {
-	Tree<int, int, 4> tree;
-
-	std::unordered_set<int> set;
-
-	std::srand(0);
+#include <LEDA/core/impl/ab_tree.h>
+#include <LEDA/core/dictionary.h>
+#include "testbench.h"
 
 
+constexpr int NodeSize = 128;
 
-	for (int i = 0; i < 500; ++i) {
-		int* number = new int(std::rand() % 10000);
-		bool didInsert = set.insert(*number).second;
-		tree.maybe_add(*number, number);
-		if (!didInsert) {
-			delete number;
-		}
+using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
+using ImplTree = Tree<int, int, NodeSize>;
+
+Benchmark bench;
+
+constexpr int ModCount = 1000000;
+
+void add_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
+	std::vector<int> numbers;
+	for (int i = 0; i < N; ++i) {
+		numbers.push_back(std::rand() % ModCount);
 	}
 
-	std::cerr << std::endl;
-
-
-	for (int n = 0; n < 10000; ++n) {
-		int i = std::rand() % 10000;
-		bool setDidDelete = set.erase(i) > 0;
-		if (!setDidDelete) {
-			continue;
-		}
-
-
-		//tree.dot_print();
-		std::cerr << "removing: " << i << std::endl;
-
-
-		if (!tree.remove(i)) {
-			std::cerr << "failed to remove: " << i << std::endl;
-			tree.dot_print();
-			getchar();
-		}
-
-		tree.validate_ptrs();
-
-
-		if (tree.get(i)) {
-			std::cerr << "found after remove: " << i << std::endl;
-			tree.dot_print();
-			getchar();
-		}
-
-		for (auto z : set) {
-			if (!tree.get(z)) {
-				std::cerr << "failed to find: " << z << " after remove: " << i << std::endl;
-				tree.dot_print();
-				getchar();
-			}
-		}
-
+	std::srand(seed);
+	bench.StartTest();
+	for (int number : numbers) {
+		leda.insert(number, new int(number));
 	}
+	bench.SwitchTest();
+
+	std::srand(seed);
+	bench.StartTest();
+	for (int number : numbers) {
+		impl.set(number, new int(number));
+	}
+	bench.StopTest();
+	bench.PrintLast({ TestType::Add }, "Add " + std::to_string(N / 1000) + "k");
+}
+
+void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
+
+	std::vector<int> numbers;
+	for (int i = 0; i < N; ++i) {
+		numbers.push_back(std::rand() % ModCount);
+	}
+
+	int ledaR = 0;
+	int implR = 0;
+	std::srand(seed);
+	bench.StartTest();
+	for (int number : numbers) {
+		leda::dic_item r = leda.lookup(std::rand() % ModCount);
+		if (r) {
+			ledaR += *leda.inf(r);
+		}
+	}
+	bench.SwitchTest();
+
+	std::srand(seed);
+	bench.StartTest();
+	for (int number : numbers) {
+		int* r = impl.get(std::rand() % ModCount);
+		if (r) {
+			implR += *r;
+		}
+	}
+	bench.StopTest();
+	bench.PrintLast({ TestType::Get }, "Get " + std::to_string(N / 1000) + "k");
+
+	if (ledaR != implR) {
+		std::cout << "adding resulted in differences.\n";
+	}
+}
+
+void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
+
+	std::vector<int> numbers;
+	for (int i = 0; i < N; ++i) {
+		numbers.push_back(std::rand() % ModCount);
+	}
+
+	std::srand(seed);
+	bench.StartTest();
+	for (int number : numbers) {
+		leda.undefine(number);
+	}
+	bench.SwitchTest();
+
+	std::srand(seed);
+	bench.StartTest();
+	for (int number : numbers) {
+		impl.remove(number);
+	}
+	bench.StopTest();
+	bench.PrintLast({ TestType::Del }, "Del " + std::to_string(N / 1000) + "k");
 }
 
 
 int main() {
-	
-	main2();
+	LedaTree ledaDic(NodeSize / 2, NodeSize);
+	ImplTree implDic;
 
-	//Tree<int, int, 5> tree;
+	add_test	(ledaDic, implDic, 2000000, 0);
+	delete_test (ledaDic, implDic, 1000000, 11);
+	get_test	(ledaDic, implDic, 2000000, 1);
+	add_test	(ledaDic, implDic, 2000000, 2);
+	get_test	(ledaDic, implDic, 1500000, 3);
+	delete_test	(ledaDic, implDic, 1500000, 4);
+	get_test	(ledaDic, implDic, 1000000, 5);
+	add_test	(ledaDic, implDic, 1000000, 6);
+	delete_test	(ledaDic, implDic, 1000000, 7);
+	get_test	(ledaDic, implDic, 1000000, 9);
+	add_test	(ledaDic, implDic, 1000000, 8);
+	delete_test (ledaDic, implDic, 1000000, 10);
+	delete_test	(ledaDic, implDic, 1000000, 0);
+	get_test	(ledaDic, implDic, 1000000, 0);
 
-	//std::unordered_set<int> set;
+	bench.Print();
 
-	//std::srand(0);
-
-	//for (int i = 0; i < 100; ++i) {
-	//	int* number = new int(std::rand() % 500);
-	//	bool didInsert = set.insert(*number).second;
-	//	std::cerr << "inserting: " << *number << "\n";
-	//	
-
-
-	//	if (didInsert != tree.set(*number, number)) {
-	//		std::cerr << "error inserting: " << *number << "\n";
-	//		getchar();
-	//	}
-	//	if (!tree.get(*number)) {
-	//		std::cerr << "error finding: " << *number << "\n";
-	//		getchar();
-	//	}
-	//	tree.validate_ptrs();
-	//}
-
-	//tree.dot_print();
-
-
-	//for (auto number : set) {
-	//	int* found = tree.get(number);
-	//	if (!found || *found != number) {
-	//		std::cerr << "error finding: " << number << "\n";
-	//		getchar();
-	//	}
-	//}
-	//tree.dot_print();
-
-	//
 	return 0;
 }
 #endif
