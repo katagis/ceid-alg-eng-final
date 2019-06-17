@@ -197,10 +197,10 @@ void testAll(int seed) {
 }
 
 TEST_CASE("test No verify 3,4,5,6", "[tree]") {
-	testAll<3, false, 1000>(1);
-	testAll<4, false, 1000>(2);
-	testAll<5, false, 1000>(3);
-	testAll<6, false, 1000>(4);
+	testAll<3, false, 5000>(1);
+	testAll<4, false, 5000>(2);
+	testAll<5, false, 5000>(3);
+	testAll<6, false, 5000>(4);
 }
 
 

@@ -1,13 +1,7 @@
-#include <iostream>
-#include "testbench.h"
-
-AggregateTimer Timer;
-#define NDEBUG
-#include "node.h"
-
-#include <unordered_set>
-
 #ifndef _TESTS
+#include <iostream>
+#include "node.h"
+#include <unordered_set>
 
 #include <LEDA/core/impl/ab_tree.h>
 #include <LEDA/core/dictionary.h>
@@ -15,7 +9,7 @@ AggregateTimer Timer;
 
 
 //constexpr int NodeSize = 338; // blocksize
-constexpr int NodeSize = 16;
+constexpr int NodeSize = 64;
 
 using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
 using ImplTree = Tree<int, int, NodeSize>;
@@ -25,28 +19,35 @@ Benchmark bench;
 constexpr int ModCount = 1000000;
 
 void add_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
+	std::srand(seed);
+
 	std::vector<int> numbers;
+	std::vector<int*> ptr_numbers;
+	numbers.reserve(N);
+	ptr_numbers.reserve(N);
+
 	for (int i = 0; i < N; ++i) {
-		numbers.push_back(std::rand() % ModCount);
+		int num = std::rand() % ModCount;
+		numbers.push_back(num);
+		ptr_numbers.push_back(new int(num));
 	}
 
-	std::srand(seed);
 	bench.StartTest();
-	for (int number : numbers) {
-		leda.insert(number, new int(number));
+	for (int i = 0; i < N; ++i) {
+		leda.insert(numbers[i], ptr_numbers[i]);
 	}
-	bench.SwitchTest();
+	bench.StopLeda();
 
-	std::srand(seed);
 	bench.StartTest();
-	for (int number : numbers) {
-		impl.set(number, new int(number));
+	for (int i = 0; i < N; ++i) {
+		impl.set(numbers[i], ptr_numbers[i]);
 	}
-	bench.StopTest();
+	bench.StopImpl();
 	bench.PrintLast({ TestType::Add }, "Add " + std::to_string(N / 1000) + "k");
 }
 
 void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
+	std::srand(seed);
 
 	std::vector<int> numbers;
 	for (int i = 0; i < N; ++i) {
@@ -55,25 +56,23 @@ void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 
 	int ledaR = 0;
 	int implR = 0;
-	std::srand(seed);
 	bench.StartTest();
 	for (int number : numbers) {
-		leda::dic_item r = leda.lookup(std::rand() % ModCount);
+		leda::dic_item r = leda.lookup(number);
 		if (r) {
 			ledaR += *leda.inf(r);
 		}
 	}
-	bench.SwitchTest();
+	bench.StopLeda();
 
-	std::srand(seed);
 	bench.StartTest();
 	for (int number : numbers) {
-		int* r = impl.get(std::rand() % ModCount);
+		int* r = impl.get(number);
 		if (r) {
 			implR += *r;
 		}
 	}
-	bench.StopTest();
+	bench.StopImpl();
 	bench.PrintLast({ TestType::Get }, "Get " + std::to_string(N / 1000) + "k");
 
 	if (ledaR != implR) {
@@ -82,24 +81,22 @@ void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 }
 
 void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
-	
+	std::srand(seed);
 	std::vector<int> numbers;
 	for (int i = 0; i < N; ++i) {
 		numbers.push_back(std::rand() % ModCount);
 	}
-	std::srand(seed);
 	bench.StartTest();
 	for (int number : numbers) {
 		leda.undefine(number);
 	}
-	bench.SwitchTest();
+	bench.StopLeda();
 
-	std::srand(seed);
 	bench.StartTest();
 	for (int number : numbers) {
 		impl.remove(number);
 	}
-	bench.StopTest();
+	bench.StopImpl();
 	bench.PrintLast({ TestType::Del }, "Del " + std::to_string(N / 1000) + "k");
 }
 
@@ -112,7 +109,7 @@ int main() {
 	add_test	(ledaDic, implDic, 2000000, 0);
 	delete_test (ledaDic, implDic, 1000000, 11);
 	get_test	(ledaDic, implDic, 2000000, 1);
-	add_test	(ledaDic, implDic, 2000000, 2);
+	add_test	(ledaDic, implDic, 2000000, 9874984);
 	get_test	(ledaDic, implDic, 1500000, 3);
 	delete_test	(ledaDic, implDic, 1500000, 4);
 	get_test	(ledaDic, implDic, 1000000, 5);

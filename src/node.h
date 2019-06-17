@@ -1,6 +1,10 @@
 #ifndef __NODE_H_
 #define __NODE_H_
 
+#include "testbench.h"
+AggregateTimer Timer;
+#define NDEBUG
+
 #include <array>
 #include <utility>
 #include <cassert>
@@ -9,6 +13,13 @@
 #include <functional>
 
 typedef unsigned int uint;
+
+// 
+// TODO list:
+// 1. Change ValueType to non-ptr specific.
+// 2. Implement GetRange and nextNode ptrs & iterators.
+// 3. Use some kind of TreePath to optimise multiple finds.
+// 
 
 // PERF: check performance vs list
 template<typename ArrayType, std::size_t ArraySize>
@@ -101,7 +112,38 @@ struct Node {
 		return ptrs[N];
 	}
 
-	ElemIndex getIndexOf(const KeyType& key) const {
+	// These 2 are roughly 70% of the total runtime since delete and insert use them too.
+	// Expects found == false when called
+	int getIndexOfFound(const KeyType& key, bool& found) const {
+		if (childrenCount == 0 || key < keys[0]) { // leftmost as a special case
+			return 0;
+		}
+
+		int left = 0;
+		int right = childrenCount - 1;
+		int middle = 0;
+
+		while (left <= right) {
+			middle = left + (right - left) / 2;
+
+			if (key == keys[middle]) {
+				found = true;
+				return middle + 1;
+			}
+
+			if (key > keys[middle]) {
+				left = middle + 1;
+			}
+			else {
+				right = middle - 1;
+			}
+		}
+
+		// when not found we still want to return the location
+		return left;
+	}
+
+	int getIndexOf(const KeyType& key) const {
 
 		// binary search here, with range from 0 -> childrenCount;
 		//
@@ -115,7 +157,7 @@ struct Node {
 		// ...
 
 		if (childrenCount == 0 || key < keys[0]) { // leftmost as a special case
-			return ElemIndex(0, false);
+			return 0;
 		}
 
 		int left = 0;
@@ -126,7 +168,7 @@ struct Node {
 			middle = left + (right - left) / 2;
 			
 			if (key == keys[middle]) {
-				return	ElemIndex(middle + 1, true);
+				return middle + 1;
 			}
 
 			if (key > keys[middle]) {
@@ -136,9 +178,7 @@ struct Node {
 				right = middle - 1;
 			}
 		}
-
-		// when not found we still want to return the location
-		return ElemIndex(left, false);
+		return left;
 	}
 
 	void insertAtLeaf(int index, const KeyType& key, DataType* data) {
@@ -311,10 +351,10 @@ struct ExactLoc {
 
 	ExactLoc() {}
 
-	ExactLoc(TNode* leaf, std::pair<int, bool> elemIndex)
+	ExactLoc(TNode* leaf, int elemIndex, bool found)
 		: leaf(leaf)
-		, index(elemIndex.first)
-		, exists(elemIndex.second) {}
+		, index(elemIndex)
+		, exists(found) {}
 };
 
 // Requirements for types:
@@ -391,16 +431,16 @@ struct Tree {
 private:
 	// actual implementations
 	TExactLoc findKey(const KeyType& key) const {
-		AggregateTimer::Scope _(Timer);
-		std::pair<int, bool> nextLoc;
+		int nextLoc;
 		TNode* nextNode = root;
 
 		while (!nextNode->isLeaf) {
 			nextLoc = nextNode->getIndexOf(key);
-			nextNode = nextNode->ptrs[nextLoc.first];
+			nextNode = nextNode->ptrs[nextLoc];
 		}
-		nextLoc = nextNode->getIndexOf(key);
-		return TExactLoc(nextNode, nextLoc);
+		bool found = false;
+		nextLoc = nextNode->getIndexOfFound(key, found);
+		return TExactLoc(nextNode, nextLoc, found);
 	}
 
 	// PERF: maybe pass location by const&, do tests
@@ -429,9 +469,9 @@ private:
 				left->insertAtInternal(left->childrenCount, keyInBetween, right->ptrs[0]);
 				left->ptrs[left->childrenCount]->parent = left;
 
-				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
-				assert(loc.second);
-				parent->keys[loc.first - 1] = std::move(right->keys[0]);
+				int loc = parent->getIndexOf(keyInBetween);
+
+				parent->keys[loc - 1] = std::move(right->keys[0]);
 
 				deleteFromArrayAt(right->ptrs, right->childrenCount + 1, 0);
 				deleteFromArrayAt(right->keys, right->childrenCount, 0);
@@ -443,11 +483,9 @@ private:
 				right->childrenCount++;
 				right->ptrs[0]->parent = right;
 
-				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
-				assert(loc.second);
+				int loc = parent->getIndexOf(keyInBetween);
 
-				parent->keys[loc.first - 1] = std::move(left->keys[left->childrenCount - 1]);
-
+				parent->keys[loc - 1] = std::move(left->keys[left->childrenCount - 1]);
 				left->childrenCount--;
 			}
 		}
@@ -455,27 +493,26 @@ private:
 			if (smallerLeft) {
 				left->insertAtLeaf(left->childrenCount, right->keys[0], reinterpret_cast<DataType*>(right->ptrs[0]));
 
-				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
-				
+				bool found = false;
+				int loc = parent->getIndexOfFound(keyInBetween, found);
+
 				deleteFromArrayAt(right->ptrs, right->childrenCount, 0);
 				deleteFromArrayAt(right->keys, right->childrenCount, 0);
 
-
-				if (loc.second) {
-					parent->keys[loc.first - 1] = std::move(right->keys[0]);
+				if (found) {
+					parent->keys[loc - 1] = std::move(right->keys[0]);
 				}
-
-				
 				right->childrenCount--;
 			}
 			else {
 				right->insertAtLeaf(0, left->keys[left->childrenCount - 1], reinterpret_cast<DataType*>(left->ptrs[left->childrenCount - 1]));
 
-				std::pair<int, bool> loc = parent->getIndexOf(keyInBetween);
-				if (loc.second) {
-					parent->keys[loc.first - 1] = std::move(left->keys[left->childrenCount - 1]);
-				}
+				bool found = false;
+				int loc = parent->getIndexOfFound(keyInBetween, found);
 
+				if (found) {
+					parent->keys[loc - 1] = std::move(left->keys[left->childrenCount - 1]);
+				}
 				left->childrenCount--;
 			}
 		}
@@ -508,7 +545,7 @@ private:
 			}
 		}
 
-		int index = initial->parent->getIndexOf(initial->keys[0]).first;
+		int index = initial->parent->getIndexOf(initial->keys[0]);
 		
 		TNode* merge;
 		bool mergeToLeft = true;
@@ -524,8 +561,6 @@ private:
 			merge = initial->parent->ptrs[index - 1];
 			mergeKey = initial->parent->keys[index - 1];
 		}
-
-
 
 		bool CanMerge = initial->childrenCount + merge->childrenCount <= N;
 
@@ -593,9 +628,6 @@ private:
 				}
 			}
 			deleteEntry(initial->parent, mergeKey, initial);
-			//if (!merge->isRoot()) {
-			//	updateKey(oldKey, merge->keys[0]);
-			//}
 			delete initial;
 			nodes--;
 		}
@@ -608,7 +640,6 @@ private:
 				else {
 					redistributeBetween(initial, merge, true, mergeKey);
 				}
-				//updateKey(oldKey, initial->keys[0]);
 			}
 			else {
 				bool shouldRedistribute = std::abs(initial->childrenCount - merge->childrenCount) > 1;
@@ -620,7 +651,6 @@ private:
 					else {
 						redistributeBetween(initial, merge, initial->childrenCount < merge->childrenCount, mergeKey);
 					}
-					//updateKey(oldKey, initial->keys[0]);
 				}
 			}
 		}
@@ -679,16 +709,15 @@ private:
 		TNode* parent = leftNode->parent;
 
 		// PERF: maybe cache something to avoid searching in the parent again? Path from root in first search down?
-		std::pair<int, bool> insertLoc = parent->getIndexOf(rightMinKey);
-		assert(insertLoc.second == false);
+		int insertLoc = parent->getIndexOf(rightMinKey);
 		
 		if (parent->childrenCount < N) {
-			parent->insertAtInternal(insertLoc.first, rightMinKey, rightNode);
+			parent->insertAtInternal(insertLoc, rightMinKey, rightNode);
 			rightNode->parent = parent;
 		}
 		else {
 			TNode* added = nullptr;
-			KeyType poppedKey = TNode::splitAndInsertInternal(parent, added, insertLoc.first, rightMinKey, rightNode);
+			KeyType poppedKey = TNode::splitAndInsertInternal(parent, added, insertLoc, rightMinKey, rightNode);
 			nodes++;
 			added->isLeaf = false;
 			added->parent = parent;

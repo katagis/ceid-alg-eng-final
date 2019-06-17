@@ -123,12 +123,12 @@ public:
 		RestartTimer();
 	}
 
-	void SwitchTest() {
+	void StopLeda() {
 		long long Duration = GetCurrent();
 		LedaTime.push_back(TestData(Duration));
 	}
 
-    void StopTest() {
+    void StopImpl() {
 		long long Duration = GetCurrent();
 		ImplTime.push_back(TestData(Duration));
 	}
@@ -191,8 +191,8 @@ struct dotted : std::numpunct<char> {
 };
 
 struct AggregateTimer {
-	long long totalNanos;
-	long long timesHit;
+	long long totalNanos = 0;
+	long long timesHit = 0;
 
 	ch::time_point<ch::system_clock> StartTime;
 
