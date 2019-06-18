@@ -110,40 +110,36 @@ struct Node {
 		assert(isLeaf);
 		return ptrs[N];
 	}
-	using NumType = unsigned int;
 	
 	// These 2 are roughly 70% of the total runtime since delete and insert use them too.
 	// Expects found == false when called
+	using NumType = unsigned int; // unsigned int gives the best performance
+
 	int getIndexOfFound(const KeyType& key, bool& found) const {
-		if (childrenCount == 0 || key < keys[0]) { // leftmost as a special case
+		if (childrenCount == 0 || key < keys[0]) { // special case for keys < keys[0] because it is common. Improves performance.
 			return 0;
 		}
 
 		NumType left = 0;
-		NumType right = childrenCount; // right has an offset of 1 to allow using Unsigned Int which performed the fastest
+		NumType right = childrenCount; 
 		NumType middle = 0;
 
-		while (left + 1 <= right) {
-			middle = left + (right - left) / 2;
+		while (left < right) {
+			middle = (right + left) >> 1;
 
-			if (key == keys[middle]) {
-				found = true;
-				return middle + 1;
-			}
-			else if (key > keys[middle]) {
-				left = middle + 1;
-			}
-			else {
+			if (key < keys[middle]) {
 				right = middle;
 			}
+			else {
+				left = middle + 1;
+			}
 		}
-
-		// when not found we still want to return the location
+		found = key == keys[left - 1];
 		return left;
 	}
 
 	int getIndexOf(const KeyType& key) const {
-
+		
 		// binary search here, with range from 0 -> childrenCount;
 		//
 		// example shape:
@@ -154,7 +150,7 @@ struct Node {
 		// if key < bcd return 0
 		// if key == bcd || key < lay return 1
 		// ...
-
+		
 		if (childrenCount == 0 || key < keys[0]) { // leftmost as a special case
 			return 0;
 		}
@@ -163,23 +159,19 @@ struct Node {
 		NumType right = childrenCount;
 		NumType middle = 0;
 
-		while (left + 1 <= right) {
-			middle = left + (right - left) / 2;
-			
-			if (key == keys[middle]) {
-				return middle + 1;
-			}
+		while (left < right) {
+			middle = (right + left) >> 1;
 
-			if (key > keys[middle]) {
-				left = middle + 1;
+			if (key < keys[middle]) {
+				right = middle; 
 			}
 			else {
-				right = middle;
+				left = middle + 1;
 			}
 		}
 		return left;
 	}
-	
+
 	void insertAtLeaf(int index, const KeyType& key, DataType* data) {
 		assert(getIndexOf(key).second == false); // This should not exist.
 		assert(isRoot() || childrenCount + 1 >= N / 2);

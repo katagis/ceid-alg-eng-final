@@ -13,9 +13,10 @@ template<typename KeyType, typename DataType, uint N>
 struct Iterator {
 	typedef Node<KeyType, DataType, N> TNode;
 
+	// order is important here for best performance
+	bool exists;
 	TNode* leaf;
 	int index;
-	bool exists;
 
 	Iterator() {}
 
@@ -51,6 +52,10 @@ struct Tree {
 		height = 0;
 		nodes = 1;
 		leaves = 1;
+	}
+
+	~Tree() {
+		clear();
 	}
 
 	// Return if an insert was actually made.
@@ -99,7 +104,7 @@ struct Tree {
 private:
 	// actual implementations
 	Iterator findKey(const KeyType& key) const {
-		AggregateTimer::Scope _(Timer);
+		//AggregateTimer::Scope _(Timer);
 		int nextLoc;
 		TNode* nextNode = root;
 
@@ -107,9 +112,10 @@ private:
 			nextLoc = nextNode->getIndexOf(key);
 			nextNode = nextNode->ptrs[nextLoc];
 		}
-		
+
 		bool found = false;
 		nextLoc = nextNode->getIndexOfFound(key, found);
+
 		return Iterator(nextNode, nextLoc, found);
 	}
 

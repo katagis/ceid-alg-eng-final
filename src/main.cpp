@@ -9,14 +9,39 @@
 
 
 //constexpr int NodeSize = 338; // blocksize
-constexpr int NodeSize = 64;
+constexpr int NodeSize = 46;
 
 using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
 using ImplTree = Tree<int, int, NodeSize>;
 
 Benchmark bench;
 
-constexpr int ModCount = 1000000;
+constexpr int ModCount = INT_MAX - 10;
+
+void add_no_bench(LedaTree& leda, ImplTree& impl, int N, int seed) {
+	std::srand(seed);
+
+	std::vector<int> numbers;
+	std::vector<int*> ptr_numbers;
+	numbers.reserve(N);
+	ptr_numbers.reserve(N);
+
+	for (int i = 0; i < N; ++i) {
+		int num = std::rand() % ModCount;
+		numbers.push_back(num);
+		ptr_numbers.push_back(new int(num));
+	}
+
+	for (int i = 0; i < N; ++i) {
+		leda.insert(numbers[i], ptr_numbers[i]);
+	}
+
+	for (int i = 0; i < N; ++i) {
+		impl.set(numbers[i], ptr_numbers[i]);
+	}
+
+}
+
 
 void add_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	std::srand(seed);
@@ -105,21 +130,33 @@ int main() {
 	LedaTree ledaDic(NodeSize / 2, NodeSize);
 	ImplTree implDic;
 	std::cout << "Memory size of Node: " << sizeof(ImplTree::TNode) << "\n";
+	int seed = 0;
 #ifndef _DEBUG
-	add_test	(ledaDic, implDic, 2000000, 0);
-	delete_test (ledaDic, implDic, 1000000, 11);
-	get_test	(ledaDic, implDic, 2000000, 1);
-	add_test	(ledaDic, implDic, 2000000, 9874984);
-	get_test	(ledaDic, implDic, 1500000, 3);
-	delete_test	(ledaDic, implDic, 1500000, 4);
-	get_test	(ledaDic, implDic, 1000000, 5);
-	add_test	(ledaDic, implDic, 1000000, 6);
-	delete_test	(ledaDic, implDic, 1000000, 7);
-	get_test	(ledaDic, implDic, 1000000, 9);
-	add_test	(ledaDic, implDic, 1000000, 8);
-	delete_test (ledaDic, implDic, 1000000, 10);
-	delete_test	(ledaDic, implDic, 1000000, 0);
-	get_test	(ledaDic, implDic, 1000000, 0);
+	add_no_bench(ledaDic, implDic, 2000000, ++seed);
+	add_test	(ledaDic, implDic, 2000000, ++seed);
+	get_test	(ledaDic, implDic, 2000000, ++seed);
+	delete_test (ledaDic, implDic, 1000000, ++seed);
+	get_test	(ledaDic, implDic, 2000000, ++seed);
+	add_test	(ledaDic, implDic, 2000000, ++seed);
+	get_test	(ledaDic, implDic, 1500000, ++seed);
+	add_no_bench(ledaDic, implDic, 4000000, ++seed);
+	delete_test	(ledaDic, implDic,  500000, ++seed);
+
+	add_no_bench(ledaDic, implDic, 4000000, ++seed);
+	delete_test (ledaDic, implDic,  500000, ++seed);
+
+	add_no_bench(ledaDic, implDic, 4000000, ++seed);
+	delete_test (ledaDic, implDic,  500000, ++seed);
+
+	add_no_bench(ledaDic, implDic, 10000000, ++seed);
+	delete_test (ledaDic, implDic, 1500000, ++seed);
+	add_test	(ledaDic, implDic, 1000000, ++seed);
+	get_test	(ledaDic, implDic, 1000000, ++seed);
+	delete_test	(ledaDic, implDic, 1000000, ++seed);
+	add_test	(ledaDic, implDic, 1000000, ++seed);
+	delete_test (ledaDic, implDic, 1000000, ++seed);
+	delete_test	(ledaDic, implDic, 1000000, ++seed);
+	get_test	(ledaDic, implDic, 1000000, ++seed);
 #else // in debug just run some basic stuff because all the tests take too much time
 	add_test(ledaDic, implDic, 2000000, 0);
 	delete_test(ledaDic, implDic, 1000000, 11);
