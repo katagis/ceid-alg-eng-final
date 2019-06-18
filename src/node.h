@@ -60,8 +60,8 @@ template<typename KeyType, typename DataType, uint N>
 struct Node {
 	typedef std::pair<int, bool> ElemIndex;
 
-	bool isLeaf;
 	int childrenCount;
+	bool isLeaf;
 	Node* parent;
 	// 2 seperate arrays for better cache management, since iterating keys only is frequent.
 	std::array<KeyType, N> keys;
@@ -110,7 +110,8 @@ struct Node {
 		assert(isLeaf);
 		return ptrs[N];
 	}
-
+	using NumType = unsigned int;
+	
 	// These 2 are roughly 70% of the total runtime since delete and insert use them too.
 	// Expects found == false when called
 	int getIndexOfFound(const KeyType& key, bool& found) const {
@@ -118,23 +119,22 @@ struct Node {
 			return 0;
 		}
 
-		int left = 0;
-		int right = childrenCount - 1;
-		int middle = 0;
+		NumType left = 0;
+		NumType right = childrenCount; // right has an offset of 1 to allow using Unsigned Int which performed the fastest
+		NumType middle = 0;
 
-		while (left <= right) {
+		while (left + 1 <= right) {
 			middle = left + (right - left) / 2;
 
 			if (key == keys[middle]) {
 				found = true;
 				return middle + 1;
 			}
-
-			if (key > keys[middle]) {
+			else if (key > keys[middle]) {
 				left = middle + 1;
 			}
 			else {
-				right = middle - 1;
+				right = middle;
 			}
 		}
 
@@ -159,11 +159,11 @@ struct Node {
 			return 0;
 		}
 
-		int left = 0;
-		int right = childrenCount - 1;
-		int middle = 0;
+		NumType left = 0;
+		NumType right = childrenCount;
+		NumType middle = 0;
 
-		while (left <= right) {
+		while (left + 1 <= right) {
 			middle = left + (right - left) / 2;
 			
 			if (key == keys[middle]) {
@@ -174,12 +174,12 @@ struct Node {
 				left = middle + 1;
 			}
 			else {
-				right = middle - 1;
+				right = middle;
 			}
 		}
 		return left;
 	}
-
+	
 	void insertAtLeaf(int index, const KeyType& key, DataType* data) {
 		assert(getIndexOf(key).second == false); // This should not exist.
 		assert(isRoot() || childrenCount + 1 >= N / 2);

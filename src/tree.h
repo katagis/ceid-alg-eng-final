@@ -99,14 +99,15 @@ struct Tree {
 private:
 	// actual implementations
 	Iterator findKey(const KeyType& key) const {
+		AggregateTimer::Scope _(Timer);
 		int nextLoc;
 		TNode* nextNode = root;
-		int curHeight = height;
 
-		while (curHeight--) {
+		while (!nextNode->isLeaf) {
 			nextLoc = nextNode->getIndexOf(key);
 			nextNode = nextNode->ptrs[nextLoc];
 		}
+		
 		bool found = false;
 		nextLoc = nextNode->getIndexOfFound(key, found);
 		return Iterator(nextNode, nextLoc, found);
