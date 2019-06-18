@@ -1,6 +1,6 @@
 #ifdef _TESTS
 #define CATCH_CONFIG_MAIN
-#include "node.h"
+#include "tree.h"
 
 #include "catch.hpp"
 #include <unordered_set>

@@ -1,6 +1,6 @@
 #ifndef _TESTS
 #include <iostream>
-#include "node.h"
+#include "tree.h"
 #include <unordered_set>
 
 #include <LEDA/core/impl/ab_tree.h>
