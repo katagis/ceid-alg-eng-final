@@ -143,7 +143,7 @@ private:
 			deleteFromArrayAt(right->keys, right->childrenCount, 0);
 
 			if (found) {
-				parent->keys[loc - 1] = std::move(right->keys[0]);
+				parent->keys[loc - 1] = MoveVal(right->keys[0]);
 			}
 			right->childrenCount--;
 		}
@@ -154,7 +154,7 @@ private:
 			int loc = parent->getIndexOfFound(keyInBetween, found);
 
 			if (found) {
-				parent->keys[loc - 1] = std::move(left->keys[left->childrenCount - 1]);
+				parent->keys[loc - 1] = MoveVal(left->keys[left->childrenCount - 1]);
 			}
 			left->childrenCount--;
 		}
@@ -172,7 +172,7 @@ private:
 
 			int loc = parent->getIndexOf(keyInBetween);
 
-			parent->keys[loc - 1] = std::move(right->keys[0]);
+			parent->keys[loc - 1] = MoveVal(right->keys[0]);
 
 			deleteFromArrayAt(right->ptrs, right->childrenCount + 1, 0);
 			deleteFromArrayAt(right->keys, right->childrenCount, 0);
@@ -186,7 +186,7 @@ private:
 
 			int loc = parent->getIndexOf(keyInBetween);
 
-			parent->keys[loc - 1] = std::move(left->keys[left->childrenCount - 1]);
+			parent->keys[loc - 1] = MoveVal(left->keys[left->childrenCount - 1]);
 			left->childrenCount--;
 		}
 
@@ -533,10 +533,5 @@ public:
 		out << "}" << nl;
 	}
 };
-
-
-
-
-
 
 #endif // __TREE_H_

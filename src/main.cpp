@@ -85,7 +85,7 @@ void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	for (int number : numbers) {
 		leda::dic_item r = leda.lookup(number);
 		if (r) {
-			ledaR += *leda.inf(r);
+			ledaR ^= *leda.inf(r);
 		}
 	}
 	bench.StopLeda();
@@ -94,14 +94,14 @@ void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	for (int number : numbers) {
 		int* r = impl.get(number);
 		if (r) {
-			implR += *r;
+			implR ^= *r;
 		}
 	}
 	bench.StopImpl();
 	bench.PrintLast({ TestType::Get }, "Get " + std::to_string(N / 1000) + "k");
 
 	if (ledaR != implR) {
-		std::cout << "adding resulted in differences.\n";
+		std::cout << "comparision resulted in differences.\n";
 	}
 }
 
@@ -139,6 +139,7 @@ int main() {
 	get_test	(ledaDic, implDic, 2000000, ++seed);
 	add_test	(ledaDic, implDic, 2000000, ++seed);
 	get_test	(ledaDic, implDic, 1500000, ++seed);
+
 	add_no_bench(ledaDic, implDic, 4000000, ++seed);
 	delete_test	(ledaDic, implDic,  500000, ++seed);
 
@@ -150,6 +151,7 @@ int main() {
 
 	add_no_bench(ledaDic, implDic, 10000000, ++seed);
 	delete_test (ledaDic, implDic, 1500000, ++seed);
+
 	add_test	(ledaDic, implDic, 1000000, ++seed);
 	get_test	(ledaDic, implDic, 1000000, ++seed);
 	delete_test	(ledaDic, implDic, 1000000, ++seed);

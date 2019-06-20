@@ -14,20 +14,20 @@ AggregateTimer Timer;
 
 typedef unsigned int uint;
 
+#define MoveVal(expression) std::move(expression)
+
 // 
 // TODO list:
-// 1. Change ValueType to non-ptr specific.
-// 2. Implement GetRange and nextNode ptrs & iterators.
-// 3. Use some kind of TreePath to optimise multiple finds.
+// 1. Implement GetRange and nextNode ptrs & iterators.
+// 2. Impelment tree.clear
 // 
 
-// PERF: check performance vs list
 template<typename ArrayType, std::size_t ArraySize>
 void insertAtArray(std::array<ArrayType, ArraySize>& arr, int lastIndex, int location, const ArrayType& elem) {
 	assert(lastIndex < ArraySize);
 	assert(location <= lastIndex);
 	for (int i = lastIndex; i > location; --i) {
-		arr[i] = std::move(arr[i - 1]);
+		arr[i] = MoveVal(arr[i - 1]);
 	}
 	arr[location] = elem;
 }
@@ -36,7 +36,7 @@ template<typename ArrayType, std::size_t ArraySize>
 void deleteFromArrayAt(std::array<ArrayType, ArraySize>& arr, int arrSize, int at) {
 	assert(arrSize <= ArraySize);
 	for (int i = at; i < arrSize - 1; ++i) {
-		arr[i] = std::move(arr[i + 1]);
+		arr[i] = MoveVal(arr[i + 1]);
 	}
 }
 
@@ -64,12 +64,11 @@ struct Node {
 	int childrenCount;
 	bool isLeaf;
 	Node* parent;
-	// 2 seperate arrays for better cache management, since iterating keys only is frequent.
+	// 2 seperate arrays for better cache management, since iterating only keys is frequent.
 	std::array<KeyType, N> keys;
 	std::array<Node*, N + 1> ptrs;
-
+	
 	int uid;
-
 	// this does not resolve to actual struct wide static 
 	// but static for this specific template instantiation
 	static const int Parity = N % 2;
@@ -87,7 +86,7 @@ struct Node {
 		return parent == nullptr;
 	}
 
-	DataType* getAsData(int index) {
+	DataType* getAsData(int index) const {
 		assert(isLeaf);
 		assert(index <= childrenCount);
 		return reinterpret_cast<DataType*>(ptrs[index - 1]);
@@ -99,9 +98,14 @@ struct Node {
 		ptrs[index - 1] = reinterpret_cast<Node*>(data);
 	}
 
-	DataType* getNextLeaf() {
+	Node* getNextLeaf() const {
 		assert(isLeaf);
 		return ptrs[N];
+	}
+
+	void setNextLeaf(Node* ptr) {
+		assert(isLeaf);
+		ptrs[N] = ptr;
 	}
 	
 	//
@@ -202,7 +206,7 @@ struct Node {
 
 			// PERF: split loops for better cache
 			for (int i = N - 1; i >= HN - Parity; --i) {
-				rightNode->keys[i - HN + Parity] = std::move(initialNode->keys[i]);
+				rightNode->keys[i - HN + Parity] = MoveVal(initialNode->keys[i]);
 				rightNode->ptrs[i - HN + Parity] = initialNode->ptrs[i];
 			}
 			rightNode->childrenCount = HN;
@@ -215,7 +219,7 @@ struct Node {
 			// this moves some items 2 times and can be optimised
 			
 			for (int i = N - 1; i >= HN; --i) {
-				rightNode->keys[i - HN] = std::move(initialNode->keys[i]);
+				rightNode->keys[i - HN] = MoveVal(initialNode->keys[i]);
 				rightNode->ptrs[i - HN] = initialNode->ptrs[i];
 			}
 			rightNode->childrenCount = HN - Parity;
@@ -241,7 +245,7 @@ struct Node {
 			// PERF: split loops for better cache
 			for (int i = N; i > HN; --i) {
 				outNewNode->ptrs[i - HN] = initialNode->ptrs[i];
-				outNewNode->keys[i - HN - 1] = std::move(initialNode->keys[i - 1]);
+				outNewNode->keys[i - HN - 1] = MoveVal(initialNode->keys[i - 1]);
 			}
 			outNewNode->ptrs[0] = initialNode->ptrs[HN];
 			poppedKey = initialNode->keys[HN - 1];
@@ -257,7 +261,7 @@ struct Node {
 
 			for (int i = N; i > HN; --i) {
 				outNewNode->ptrs[i - HN] = initialNode->ptrs[i];
-				outNewNode->keys[i - HN - 1] = std::move(initialNode->keys[i - 1]);
+				outNewNode->keys[i - HN - 1] = MoveVal(initialNode->keys[i - 1]);
 			}
 			outNewNode->ptrs[0] = ptrInsert;
 			poppedKey = key;
@@ -272,7 +276,7 @@ struct Node {
 			// PERF: split loops for better cache
 			for (int i = N; i - 1 > HN; --i) {
 				outNewNode->ptrs[i - 1 - HN] = initialNode->ptrs[i];
-				outNewNode->keys[i - 1 - HN - 1] = std::move(initialNode->keys[i - 1]);
+				outNewNode->keys[i - 1 - HN - 1] = MoveVal(initialNode->keys[i - 1]);
 			}
 			outNewNode->ptrs[0] = initialNode->ptrs[HN + 1];
 			poppedKey = initialNode->keys[HN];
@@ -287,14 +291,16 @@ struct Node {
 			outNewNode->ptrs[i]->parent = outNewNode;
 		}
 
-		return std::move(poppedKey);
+		return MoveVal(poppedKey);
 	}
 
 	
 	// Returns key index that was deleted
 	int deleteKeyAndPtr(const KeyType& key, Node* ptr) {
-		// PERF: Delete: 24ms. 
+		// PERF: possible to save ~5-10 ms here.
 		// Can leave empty stuff and fix it during later stages (eg redistribution or even node delete)
+		// Can avoid double search if passing more params can detect where the ptr is (before/at/after key)
+		// Can perform binary search when deleting key
 		const int pos = deleteFromArray(keys, childrenCount, key);
 		deleteFromArray(ptrs, childrenCount + !isLeaf, ptr);
 		childrenCount--;
@@ -308,6 +314,7 @@ struct Node {
 		assert(rangeStart + offset >= 0);
 		assert(offset > 0);
 
+		// PERF: possible to move here
 		for (int i = rangeEnd + offset; i >= rangeStart + offset; --i) {
 			if (i - offset - 1 >= 0) {
 				keys[i - 1] = keys[i - offset - 1];
@@ -325,6 +332,7 @@ struct Node {
 		assert(rangeStart + offset >= 0);
 		assert(offset > 0);
 
+		// PERF: possible move here.
 		for (int i = rangeEnd + offset; i >= rangeStart + offset; --i) {
 			keys[i] = keys[i - offset];
 			ptrs[i] = ptrs[i - offset];
