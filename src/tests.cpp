@@ -115,6 +115,37 @@ TEST_CASE("random insert odd", "[tree]") {
 }
 
 template<uint NodeSize, bool Verify, uint Size>
+void verifyIterator(Tree<int, int, NodeSize>& tree, std::unordered_set<int>& set) {
+	REQUIRE(tree.size(), set.size());
+
+	int treeKeyTotal = 0;
+	int treePtrTotal = 0;
+	int setTotal = 0;
+
+	int elemsIterated = 0;
+
+	int prevKey = -1;
+
+	for (Iterator it = tree.first(); it.isValid(); it.next()) {
+		elemsIterated++;
+		treeKeyTotal ^= it.key();
+		treePtrTotal ^= *it.value();
+		REQUIRE(it.key() == *it.value());
+		REQUIRE(prevKey < it.key());
+		prevKey = it.key();
+		it.next();
+	}
+	REQUIRE(treeKeyTotal == treePtrTotal);
+	REQUIRE(elemsIterated == tree.size());
+
+	for (auto el : set) {
+		setTotal ^= el;
+	}
+
+	REQUIRE(treeKeyTotal == setTotal);
+}
+
+template<uint NodeSize, bool Verify, uint Size>
 void testAll(int seed) {
 	Tree<int, int, NodeSize> tree;
 
@@ -132,6 +163,9 @@ void testAll(int seed) {
 	}
 
 	REQUIRE(set.size() == tree.size());
+
+	verifyIterator(tree, set);
+	
 	for (auto number : set) {
 		int* found = tree.get(number);
 		REQUIRE(found);
@@ -147,6 +181,8 @@ void testAll(int seed) {
 				delete number;
 			}
 		}
+
+		verifyIterator(tree, set);
 
 		for (int i = 0; i < Size/3; ++i) {
 			int number = std::rand() % 8000;
@@ -177,6 +213,8 @@ void testAll(int seed) {
 	}
 	
 
+	verifyIterator(tree, set);
+
 	REQUIRE(set.size() == tree.size());
 	for (auto number : set) {
 		int* found = tree.get(number);
@@ -197,12 +235,10 @@ void testAll(int seed) {
 }
 
 TEST_CASE("test No verify 3,4,5,6", "[tree]") {
-	testAll<3, false, 5000>(1);
-	testAll<4, false, 5000>(2);
-	testAll<5, false, 5000>(3);
-	testAll<6, false, 5000>(4);
+	testAll<3, false, 1000>(1);
+	testAll<4, false, 1000>(2);
+	testAll<5, false, 1000>(3);
+	testAll<6, false, 1000>(4);
 }
-
-
 
 #endif

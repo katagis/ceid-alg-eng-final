@@ -8,7 +8,8 @@
 // key: operator< & operator==, movable, copy-constructuble
 // 
 
-
+// Not an actuall stl like iterator but good enough for our example
+// can be used to linearly iterate over elements with O(1) increment for the next element
 template<typename KeyType, typename DataType, uint N>
 struct Iterator {
 	typedef Node<KeyType, DataType, N> TNode;
@@ -24,6 +25,41 @@ struct Iterator {
 		: leaf(leaf)
 		, index(elemIndex)
 		, exists(found) {}
+
+	// Increments iterator to the next element. May skip to another leaf
+	void next() {
+		exists = true;
+		if (index < leaf->childrenCount) {
+			index++;
+		}
+		else {
+			nextLeaf();
+		}
+	}
+
+	// true if the current position has any element that can be accessed.
+	// can be used for iteration loops as ending condition
+	bool isValid() const {
+		return leaf != nullptr;
+	}
+
+	// Skip to the first element of the next leaf
+	void nextLeaf() {
+		index = 0;
+		leaf = leaf->getNextLeaf();
+	}
+
+	const KeyType& key() const {
+		return leaf->keys[index];
+	}
+
+	DataType* value() const {
+		return leaf->getAsData(index);
+	}
+
+	DataType*& valueAsMutablePtr() {
+		return leaf->getAsDataMutable(index);
+	}
 };
 
 // Requirements for types:
@@ -100,6 +136,21 @@ struct Tree {
 	bool empty() const {
 		return size() == 0;
 	}
+
+	// get an iterator to the leftmost item in the tree
+	Iterator first() const {
+		if (empty()) {
+			return Iterator(nullptr, 0, false);
+		}
+		TNode* nextNode = root;
+
+		while (!nextNode->isLeaf) {
+			nextNode = nextNode->ptrs[0];
+		}
+		assert(nextNode->isLeaf);
+		return Iterator(nextNode , 0, true);
+	}
+
 
 private:
 	// actual implementations
@@ -437,6 +488,15 @@ public:
 			}
 
 			if (node->isLeaf) {
+				TNode* nextLeaf = node->getNextLeaf();
+
+				if (nextLeaf) {
+					if (nextLeaf->keys[0] <= node->keys[childrenCount]) {
+						std::cerr << "found incorrect next node ptr!\n";
+						getchar();
+					}
+				}
+
 				return;
 			}
 

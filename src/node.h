@@ -19,7 +19,8 @@ typedef unsigned int uint;
 // 
 // TODO list:
 // 1. Implement GetRange and nextNode ptrs & iterators.
-// 2. Impelment tree.clear
+// 2. Implement tree.clear
+// 3. Implement simulated disk access count
 // 
 
 template<typename ArrayType, std::size_t ArraySize>
@@ -90,6 +91,12 @@ struct Node {
 		assert(isLeaf);
 		assert(index <= childrenCount);
 		return reinterpret_cast<DataType*>(ptrs[index - 1]);
+	}
+
+	DataType*& getAsDataMutable(int index) {
+		assert(isLeaf);
+		assert(index <= childrenCount);
+		return reinterpret_cast<DataType*&>(ptrs[index - 1]);
 	}
 
 	void setAsData(int index, DataType* data) {
