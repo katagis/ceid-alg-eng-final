@@ -166,6 +166,8 @@ public:
 		PrintBenchLine("Get: ", ImplPerType[to_underlying(TestType::Get)], LedaPerType[to_underlying(TestType::Get)]);
 		PrintBenchLine("Add: ", ImplPerType[to_underlying(TestType::Add)], LedaPerType[to_underlying(TestType::Add)]);
 		PrintBenchLine("Del: ", ImplPerType[to_underlying(TestType::Del)], LedaPerType[to_underlying(TestType::Del)]);
+		PrintBenchLine("Iter: ", ImplPerType[to_underlying(TestType::Iterate)], LedaPerType[to_underlying(TestType::Iterate)]);
+
 	}
 };
 

@@ -61,10 +61,11 @@ TEST_CASE("random insert even", "[tree]") {
 
 	std::unordered_set<int> set;
 
-	std::srand(0);
+	rd::seed(0);
+	rd::setMax(20000);
 
 	for (int i = 0; i < 15000; ++i) {
-		int* number = new int(std::rand() % 20000);
+		int* number = new int(rd::get() % 20000);
 		bool didInsert = set.insert(*number).second;
 		REQUIRE(tree.maybe_add(*number, number) == didInsert);
 		if (!didInsert) {
@@ -90,10 +91,10 @@ TEST_CASE("random insert odd", "[tree]") {
 
 	std::unordered_set<int> set;
 
-	std::srand(1);
-
+	rd::seed(1);
+	rd::setMax(20000);
 	for (int i = 0; i < 15000; ++i) {
-		int* number = new int(std::rand() % 20000);
+		int* number = new int(rd::get());
 		bool didInsert = set.insert(*number).second;
 		REQUIRE(tree.maybe_add(*number, number) == didInsert);
 		if (!didInsert) {
@@ -114,9 +115,9 @@ TEST_CASE("random insert odd", "[tree]") {
 
 }
 
-template<uint NodeSize, bool Verify, uint Size>
+template<uint NodeSize>
 void verifyIterator(Tree<int, int, NodeSize>& tree, std::unordered_set<int>& set) {
-	REQUIRE(tree.size(), set.size());
+	REQUIRE(tree.size() == set.size());
 
 	int treeKeyTotal = 0;
 	int treePtrTotal = 0;
@@ -133,7 +134,6 @@ void verifyIterator(Tree<int, int, NodeSize>& tree, std::unordered_set<int>& set
 		REQUIRE(it.key() == *it.value());
 		REQUIRE(prevKey < it.key());
 		prevKey = it.key();
-		it.next();
 	}
 	REQUIRE(treeKeyTotal == treePtrTotal);
 	REQUIRE(elemsIterated == tree.size());
@@ -151,10 +151,12 @@ void testAll(int seed) {
 
 	std::unordered_set<int> set;
 
-	std::srand(seed);
+	rd::seed(seed);
+	rd::setMax(8000);
+
 
 	for (int i = 0; i < Size; ++i) {
-		int* number = new int(std::rand() % 8000);
+		int* number = new int(rd::get());
 		bool didInsert = set.insert(*number).second;
 		REQUIRE(tree.maybe_add(*number, number) == didInsert);
 		if (!didInsert) {
@@ -174,7 +176,7 @@ void testAll(int seed) {
 	
 	for (int n = 0; n < Size; ++n) {
 		for (int i = 0; i < Size/5; ++i) {
-			int* number = new int(std::rand() % 8000);
+			int* number = new int(rd::get());
 			bool didInsert = set.insert(*number).second;
 			REQUIRE(tree.maybe_add(*number, number) == didInsert);
 			if (!didInsert) {
@@ -185,7 +187,7 @@ void testAll(int seed) {
 		verifyIterator(tree, set);
 
 		for (int i = 0; i < Size/3; ++i) {
-			int number = std::rand() % 8000;
+			int number = rd::get();
 			bool setDidDelete = set.erase(number) > 0;
 			if (!setDidDelete) {
 				continue;
@@ -234,11 +236,30 @@ void testAll(int seed) {
 	REQUIRE(tree.size() == 0);
 }
 
-TEST_CASE("test No verify 3,4,5,6", "[tree]") {
-	testAll<3, false, 1000>(1);
-	testAll<4, false, 1000>(2);
-	testAll<5, false, 1000>(3);
-	testAll<6, false, 1000>(4);
+TEST_CASE("test all 3,4,5,6", "[tree]") {
+	testAll<3, true, 1000>(1);
+	testAll<4, true, 1000>(2);
+	testAll<5, true, 1000>(3);
+	testAll<6, true, 1000>(4);
 }
+
+TEST_CASE("test iterator", "[tree]") {
+	Tree<int, int, 4> tree;
+
+	for (int i = 0; i < 100; ++i) {
+		tree.set(i, new int(i));
+	}
+
+	REQUIRE(*tree.find(12).value() == 12);
+	REQUIRE(tree.find(12).key() == 12);
+
+	int num = 10;
+	for (auto it = tree.find(10); it.key() < 50; ++it) {
+		REQUIRE(num == it.key());
+		num++;
+	}
+	REQUIRE(num == 50);
+}
+
 
 #endif

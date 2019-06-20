@@ -81,6 +81,7 @@ struct Node {
 		, parent(nullptr) {
 		static uint total_uids = 0;
 		uid = total_uids++;
+		setNextLeaf(nullptr);
 	}
 
 	bool isRoot() const {
@@ -90,19 +91,19 @@ struct Node {
 	DataType* getAsData(int index) const {
 		assert(isLeaf);
 		assert(index <= childrenCount);
-		return reinterpret_cast<DataType*>(ptrs[index - 1]);
+		return reinterpret_cast<DataType*>(ptrs[index]);
 	}
 
 	DataType*& getAsDataMutable(int index) {
 		assert(isLeaf);
 		assert(index <= childrenCount);
-		return reinterpret_cast<DataType*&>(ptrs[index - 1]);
+		return reinterpret_cast<DataType*&>(ptrs[index]);
 	}
 
 	void setAsData(int index, DataType* data) {
 		assert(isLeaf);
 		assert(index <= childrenCount);
-		ptrs[index - 1] = reinterpret_cast<Node*>(data);
+		ptrs[index] = reinterpret_cast<Node*>(data);
 	}
 
 	Node* getNextLeaf() const {
@@ -205,9 +206,13 @@ struct Node {
 
 	static Node* splitAndInsertLeaf(Node* initialNode, int insertIndex, const KeyType& key, DataType* data) {
 		assert(initialNode->childrenCount == N);
-	
+		
+
 		Node* rightNode = new Node();
 		rightNode->isLeaf = true;
+		rightNode->setNextLeaf(initialNode->getNextLeaf());
+		initialNode->setNextLeaf(rightNode);
+
 		if (insertIndex < HN) {
 			// Our element is in the left node
 

@@ -26,13 +26,15 @@ struct Iterator {
 		, index(elemIndex)
 		, exists(found) {}
 
+
+	void operator++() {
+		next();
+	}
+
 	// Increments iterator to the next element. May skip to another leaf
 	void next() {
-		exists = true;
-		if (index < leaf->childrenCount) {
-			index++;
-		}
-		else {
+		++index;
+		if (index >= leaf->childrenCount) {
 			nextLeaf();
 		}
 	}
@@ -76,7 +78,6 @@ struct Tree {
 	TNode* root;
 
 	uint height;
-	uint leaves;
 	uint nodes;
 
 	uint elementCount;
@@ -87,7 +88,6 @@ struct Tree {
 		elementCount = 0;
 		height = 0;
 		nodes = 1;
-		leaves = 1;
 	}
 
 	~Tree() {
@@ -104,7 +104,7 @@ struct Tree {
 	}
 
 	DataType* get(const KeyType& key) const {
-		Iterator loc = findKey(key);
+		Iterator loc = find(key);
 		if (!loc.exists) {
 			return nullptr;
 		}
@@ -118,7 +118,7 @@ struct Tree {
 
 	// Remove a key and return the pointer to the element if it existed.
 	DataType* removePop(const KeyType& key) {
-		Iterator loc = findKey(key);
+		Iterator loc = find(key);
 		if (!loc.exists) {
 			return nullptr;
 		}
@@ -152,10 +152,7 @@ struct Tree {
 	}
 
 
-private:
-	// actual implementations
-	Iterator findKey(const KeyType& key) const {
-		//AggregateTimer::Scope _(Timer);
+	Iterator find(const KeyType& key) const {
 		int nextLoc;
 		TNode* nextNode = root;
 
@@ -167,21 +164,22 @@ private:
 		bool found = false;
 		nextLoc = nextNode->getIndexOfFound(key, found);
 
-		return Iterator(nextNode, nextLoc, found);
+		return Iterator(nextNode, nextLoc - 1, found);
 	}
 
-	// PERF: maybe pass location by const&, do tests
+private:
 	void setAtIt(Iterator location, DataType* data) {
 		assert(location.exists);
 		location.leaf->setAsData(location.index, data);
 	}
 
-
-	void redistributeBetweenLeaves(TNode* left, TNode* right, bool smallerLeft, const KeyType& keyInBetween) {
+	void redistributeBetweenLeaves(TNode* left, TNode* right, const KeyType& keyInBetween) {
 		assert(left->keys[0] < right->keys[0]);
 		assert(keyInBetween <= right->keys[0]);
 		assert(left->isLeaf);
 
+
+		bool smallerLeft = left->childrenCount < right->childrenCount;
 		TNode* parent = left->parent;
 
 		if (smallerLeft) {
@@ -358,64 +356,46 @@ private:
 
 		int index = initial->parent->getIndexOf(initial->keys[0]);
 
-		TNode* merge;
-		bool mergeToLeft = true;
-		KeyType mergeKey;
+		TNode* left;
+		TNode* right;
+		KeyType& mergeKey = (index == 0) ? initial->parent->keys[0] : initial->parent->keys[index - 1];
+		
 		if (index == 0) {
-			// get the right 
-			merge = initial->parent->ptrs[1];
-			mergeToLeft = false;
-			mergeKey = initial->parent->keys[0];
+			right = initial->parent->ptrs[1];
+			left = initial;
 		}
 		else {
-			// get left
-			merge = initial->parent->ptrs[index - 1];
-			mergeKey = initial->parent->keys[index - 1];
+			right = initial;
+			left = initial->parent->ptrs[index - 1];
 		}
 
-		bool CanMerge = initial->childrenCount + merge->childrenCount <= N;
-
-		if (CanMerge) {
-			int totalChildren = initial->childrenCount + merge->childrenCount;
-			if (!mergeToLeft) {
-				merge->moveInfoInplaceLeaf(0, merge->childrenCount - 1, initial->childrenCount);
-
-				for (int i = 0; i < initial->childrenCount; ++i) {
-					merge->ptrs[i] = initial->ptrs[i];
-					merge->keys[i] = initial->keys[i];
-				}
-				merge->childrenCount = totalChildren;
+		int totalChildren = left->childrenCount + right->childrenCount;
+		
+		if (totalChildren <= N) {
+			for (int i = totalChildren - 1; i >= left->childrenCount; --i) {
+				left->ptrs[i] = right->ptrs[i - left->childrenCount];
+				left->keys[i] = right->keys[i - left->childrenCount];
 			}
-			else {
-				for (int i = totalChildren - 1; i >= merge->childrenCount; --i) {
-					merge->ptrs[i] = initial->ptrs[i - merge->childrenCount];
-					merge->keys[i] = initial->keys[i - merge->childrenCount];
-				}
-				merge->childrenCount = totalChildren;
-			}
-			deleteEntryInternal(initial->parent, mergeKey, initial);
-			delete initial;
+			left->childrenCount = totalChildren;
+			left->setNextLeaf(right->getNextLeaf());
+			deleteEntryInternal(right->parent, mergeKey, right);
+			delete right;
 			nodes--;
 		}
 		else { // redistribute
-			if (mergeToLeft) {
-				redistributeBetweenLeaves(merge, initial, false, mergeKey);
-			}
-			else {
-				redistributeBetweenLeaves(initial, merge, true, mergeKey);
-			}
+			redistributeBetweenLeaves(left, right, mergeKey);
 		}
 	}
 
 	DataType* deleteAt(Iterator location) {
 		DataType* data = location.leaf->getAsData(location.index);
-		deleteEntryLeaf(location.leaf, location.leaf->keys[location.index - 1], location.leaf->ptrs[location.index - 1]);
+		deleteEntryLeaf(location.leaf, location.leaf->keys[location.index], location.leaf->ptrs[location.index]);
 		elementCount--;
 		return data;
 	}
 
 	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
-		Iterator location = findKey(key);
+		Iterator location = find(key);
 		if (location.exists) {
 			if (modifyIfExists) {
 				setAtIt(location, data);
@@ -424,11 +404,11 @@ private:
 		}
 
 		if (location.leaf->childrenCount < N) {
-			location.leaf->insertAtLeaf(location.index, key, data);
+			location.leaf->insertAtLeaf(location.index + 1, key, data);
 		}
 		else {
 			// split node,
-			TNode* second = TNode::splitAndInsertLeaf(location.leaf, location.index, key, data);
+			TNode* second = TNode::splitAndInsertLeaf(location.leaf, location.index + 1, key, data);
 			second->isLeaf = true;
 			nodes++;
 
@@ -491,7 +471,7 @@ public:
 				TNode* nextLeaf = node->getNextLeaf();
 
 				if (nextLeaf) {
-					if (nextLeaf->keys[0] <= node->keys[childrenCount]) {
+					if (nextLeaf->keys[0] <= node->keys[node->childrenCount - 1]) {
 						std::cerr << "found incorrect next node ptr!\n";
 						getchar();
 					}
