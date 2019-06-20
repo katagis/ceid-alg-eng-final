@@ -60,19 +60,13 @@ template<typename KeyType, typename DataType, uint N>
 struct Node {
 	typedef std::pair<int, bool> ElemIndex;
 
+	// Order of members is important here for performance.
 	int childrenCount;
 	bool isLeaf;
 	Node* parent;
 	// 2 seperate arrays for better cache management, since iterating keys only is frequent.
 	std::array<KeyType, N> keys;
 	std::array<Node*, N + 1> ptrs;
-
-	// todo: remove this, it is only here to force the compiler to instanciate these templates
-	// if not instanciated we cannot use them while debugging.
-	void debug() {
-		auto a = keys.data();
-		auto b = ptrs.data();
-	}
 
 	int uid;
 
@@ -87,7 +81,6 @@ struct Node {
 		, parent(nullptr) {
 		static uint total_uids = 0;
 		uid = total_uids++;
-		debug();
 	}
 
 	bool isRoot() const {
@@ -111,69 +104,78 @@ struct Node {
 		return ptrs[N];
 	}
 	
-	// These 2 are roughly 70% of the total runtime since delete and insert use them too.
-	// Expects found == false when called
+	//
+	// This binary search is the part of the code that needs the most performance.
+	// In our test these 2 functions run 19 million times and the body of the while loop runs about 200 million times. 
+	// 
+	// This specific implementation gives us the best performance on x64 because it compiles to a single cmp command.
+	// The improvement over 2 cmp commands was about 10% of the time.
+	// The compiled x64 code of the branch compiles (for KeyType == int) as 2 assembly commands: cmp, cmovg (conditional move if greater)
+	// without any jump. (Verfied using Compiler Explorer at https //godbolt.org/)
+	//
+
 	using NumType = unsigned int; // unsigned int gives the best performance
 
+	// Expects found == false when called
 	int getIndexOfFound(const KeyType& key, bool& found) const {
-		if (childrenCount == 0 || key < keys[0]) { // special case for keys < keys[0] because it is common. Improves performance.
-			return 0;
-		}
 
-		NumType left = 0;
-		NumType right = childrenCount; 
-		NumType middle = 0;
-
-		while (left < right) {
-			middle = (right + left) >> 1;
-
-			if (key < keys[middle]) {
-				right = middle;
-			}
-			else {
-				left = middle + 1;
-			}
-		}
-		found = key == keys[left - 1];
-		return left;
-	}
-
-	int getIndexOf(const KeyType& key) const {
-		
-		// binary search here, with range from 0 -> childrenCount;
-		//
-		// example shape:
+		// search from 0 -> childrenCount return ptr index to follow
+		// example:
 		//
 		// |*| bcd |*| lay |*| --- |*|
 		// 
 		// we want to return the ptr index to follow to find the value
-		// if key < bcd return 0
-		// if key == bcd || key < lay return 1
+		// if key < 'bcd' return 0
+		// if key == 'bcd' || key < 'lay' return 1
 		// ...
-		
-		if (childrenCount == 0 || key < keys[0]) { // leftmost as a special case
+
+		if (childrenCount == 0 || key < keys[0]) { 
+			// special case for keys < keys[0] because it is a common case in the context of B+ tree.
+			// provides actual benchmarked performance improvements
 			return 0;
 		}
 
 		NumType left = 0;
-		NumType right = childrenCount;
 		NumType middle = 0;
+		NumType half;
+		NumType len = childrenCount;
 
-		while (left < right) {
-			middle = (right + left) >> 1;
-
-			if (key < keys[middle]) {
-				right = middle; 
+		while ((half = len / 2) > 0) {
+			middle = left + half;
+			if (keys[middle] <= key) {
+				left = middle;
 			}
-			else {
-				left = middle + 1;
-			}
+			len -= half;
 		}
-		return left;
+		found = key == keys[left];
+		return left + 1;
+	}
+
+	// Exact same as above without returning if found.
+	// we usually dont really care if the key was found or not unless we are on a leaf.
+	// This version is slightly faster than the above
+	int getIndexOf(const KeyType& key) const {
+
+		if (childrenCount == 0 || key < keys[0]) {
+			return 0;
+		}
+
+		NumType left = 0;
+		NumType middle = 0;
+		NumType half;
+		NumType len = childrenCount;
+
+		while ((half = len / 2) > 0) {
+			middle = left + half;
+			if (keys[middle] <= key) {
+				left = middle;
+			}
+			len -= half;
+		}
+		return left + 1;
 	}
 
 	void insertAtLeaf(int index, const KeyType& key, DataType* data) {
-		assert(getIndexOf(key).second == false); // This should not exist.
 		assert(isRoot() || childrenCount + 1 >= N / 2);
 		assert(isLeaf);
 
@@ -183,8 +185,6 @@ struct Node {
 	}
 
 	void insertAtInternal(int index, const KeyType& key, Node* node) {
-		assert(getIndexOf(key).second == false); // This should not exist.
-		//assert(isRoot() || childrenCount + 1 >= N / 2);
 		assert(!isLeaf);
 
 		insertAtArray(keys, childrenCount, index, key);
