@@ -305,11 +305,10 @@ struct Node {
 
 		return MoveVal(poppedKey);
 	}
-
 	
 	// Returns key index that was deleted
 	int deleteKeyAndPtr(const KeyType& key, Node* ptr) {
-		// PERF: possible to save ~5-10 ms here.
+		// PERF: possible to save 20 ms here.
 		// Can leave empty stuff and fix it during later stages (eg redistribution or even node delete)
 		// Can avoid double search if passing more params can detect where the ptr is (before/at/after key)
 		// Can perform binary search when deleting key
@@ -334,19 +333,6 @@ struct Node {
 			else {
 				keys[i - 1] = leftKey;
 			}
-			ptrs[i] = ptrs[i - offset];
-		}
-	}
-
-	void moveInfoInplaceLeaf(int rangeStart, int rangeEnd, int offset) {
-		assert(rangeEnd < N);
-		assert(rangeEnd + offset < N);
-		assert(rangeStart + offset >= 0);
-		assert(offset > 0);
-
-		// PERF: possible move here.
-		for (int i = rangeEnd + offset; i >= rangeStart + offset; --i) {
-			keys[i] = keys[i - offset];
 			ptrs[i] = ptrs[i - offset];
 		}
 	}

@@ -69,6 +69,10 @@ private:
 	std::vector<TestData> LedaTime;
 	std::vector<TestInfo> tests;
 
+	static std::string TimestepStr() {
+		return " ms";
+	}
+
 #ifdef USE_CHRONO
 	ch::time_point<ch::system_clock> StartTime;
 	void RestartTimer() {
@@ -76,7 +80,7 @@ private:
 	}
 
 	long long GetCurrent() const {
-		return ch::duration_cast<ch::microseconds>(ch::system_clock::now() - StartTime).count();
+		return ch::duration_cast<ch::milliseconds>(ch::system_clock::now() - StartTime).count();
 	}
 #else
 	struct timeval StartTime;
@@ -105,11 +109,9 @@ public:
 
 	// Internal,  formats and prints a line with 2 times and their difference.
 	void PrintBenchLine(const std::string& Title, TestData Impl, TestData Leda) {
-		static std::string TimestepStr = " micros";
-
 		std::cout << std::right;
-		std::cout << "# " << std::setw(11) << std::left << Title << " Impl: " << std::right << std::setw(7) << Impl.Time << TimestepStr << " | "
-			"LEDA: " << std::setw(7) << Leda.Time << TimestepStr << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << "\n";
+		std::cout << "# " << std::setw(18) << std::left << Title << " Impl: " << std::right << std::setw(7) << Impl.Time << TimestepStr() << " | "
+			"LEDA: " << std::setw(7) << Leda.Time << TimestepStr() << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << "\n";
 	}
 
 public:

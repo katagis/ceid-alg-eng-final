@@ -8,7 +8,7 @@
 #include <LEDA/core/dictionary.h>
 
 //constexpr int NodeSize = 338; // blocksize
-constexpr int NodeSize = 64;
+constexpr int NodeSize = 128;
 
 using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
 using ImplTree = Tree<int, int, NodeSize>;
@@ -121,6 +121,37 @@ void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	bench.PrintLast({ TestType::Del }, "Del " + std::to_string(N / 1000) + "k");
 }
 
+void delete_exact_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
+	rd::seed(seed);
+
+	if (N > (impl.size() * 3) / 4) {
+		std::cerr << "N is too big at delete exact\n";
+		return;
+	}
+
+	std::vector<int> numbers;
+	for (int i = 0; i < N; ) {
+		int number = rd::get();
+		if (impl.find(number).exists) {
+			numbers.push_back(rd::get());
+			++i;
+		}
+	}
+
+	bench.StartTest();
+	for (int number : numbers) {
+		leda.undefine(number);
+	}
+	bench.StopLeda();
+
+	bench.StartTest();
+	for (int number : numbers) {
+		impl.remove(number);
+	}
+	bench.StopImpl();
+	bench.PrintLast({ TestType::Del }, "Del Exact " + std::to_string(N / 1000) + "k");
+}
+
 void iterate_all(LedaTree& leda, ImplTree& impl) {
 
 	int count = impl.size();
@@ -144,40 +175,14 @@ void iterate_all(LedaTree& leda, ImplTree& impl) {
 	if (ledaR != implR) {
 		std::cout << "iteration resulted in differences.\n";
 	}
-	bench.PrintLast({ TestType::Iterate }, "Iter " + std::to_string(count / 1000) + "k");
+	bench.PrintLast({ TestType::Iterate }, "Iter " + std::to_string(count / 1000000) + "m");
 }
 
-using IterType = int;
-void iterate_count(IterType items) {
-	leda::dictionary<IterType, int*, leda::ab_tree> leda(NodeSize / 2, NodeSize);
-	Tree<IterType, int, NodeSize> impl;
-
-	for (IterType i = 0; i < items; ++i) {
+void add_items(LedaTree& leda, ImplTree& impl, int count) {
+	for (int i = 0; i < count; ++i) {
 		leda.insert(i, nullptr);
 		impl.set(i, nullptr);
 	}
-
-	IterType ledaR = 0;
-	IterType implR = 0;
-
-	bench.StartTest();
-	int n;
-	forall_defined(n, leda) {
-		ledaR ^= n;
-	}
-	bench.StopLeda();
-
-	bench.StartTest();
-	for (Iterator it = impl.first(); it.isValid(); ++it) {
-		implR ^= it.key();
-	}
-	bench.StopImpl();
-
-	if (ledaR != implR) {
-		std::cout << "iteration resulted in differences.\n";
-	}
-
-	bench.PrintLast({ TestType::Iterate }, "Iter " + std::to_string(items / 1000000) + "m");
 }
 
 int main() {
@@ -185,24 +190,24 @@ int main() {
 	ImplTree implDic;
 	std::cout << "Memory size of Node: " << sizeof(ImplTree::TNode) << "\n";
 
-	rd::setMax(1000000);
+	rd::setMax(2 * 1000 * 1000);
 
 	int seed = 0;
 #ifndef _DEBUG
 	add_test	(ledaDic, implDic, 1000000, ++seed);
-	iterate_all(ledaDic, implDic);
 	get_test	(ledaDic, implDic, 1000000, ++seed);
-	delete_test (ledaDic, implDic, 1000000, ++seed);
+	//delete_test (ledaDic, implDic, 2000000, ++seed);
 
+	
 	add_test	(ledaDic, implDic, 1000000, ++seed);
 	get_test	(ledaDic, implDic, 1000000, ++seed);
-	delete_test	(ledaDic, implDic, 1000000, ++seed);
 	add_test	(ledaDic, implDic,  500000, ++seed);
-	iterate_all(ledaDic, implDic);
 	get_test	(ledaDic, implDic,  500000, ++seed);
-	delete_test (ledaDic, implDic,  500000, ++seed);
+	//delete_test (ledaDic, implDic,  500000, ++seed);
 
-	iterate_count(50 * 1000 * 1000);
+	add_items(ledaDic, implDic, 50 * 1000 * 1000);
+	iterate_all(ledaDic, implDic);
+	delete_exact_test(ledaDic, implDic, 500000, ++seed);
 
 #else // in debug just run some basic stuff because all the tests take too much time
 	add_test(ledaDic, implDic, 2000000, 0);
