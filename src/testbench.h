@@ -44,7 +44,8 @@ struct TestData {
 	int testsIncluded;
 
 	TestData() 
-		: Time(0) {}
+		: Time(0)
+		, testsIncluded(0) {}
 
 	TestData(long long time)
 		: Time(time) {}
@@ -67,8 +68,13 @@ struct Benchmark {
 private:
 	std::vector<TestData> ImplTime;
 	std::vector<TestData> LedaTime;
+	std::vector<long long> BlockReads;
 	std::vector<TestInfo> tests;
 
+public:
+	long long CurrentBenchBlocks;
+
+private:
 	static std::string TimestepStr() {
 		return " ms";
 	}
@@ -108,10 +114,12 @@ private:
 public:
 
 	// Internal,  formats and prints a line with 2 times and their difference.
-	void PrintBenchLine(const std::string& Title, TestData Impl, TestData Leda) {
+	void PrintBenchLine(const std::string& Title, TestData Impl, TestData Leda, long long Blocks) {
+		std::string BlockStr = Blocks > 0 ? "\tBlocks Accessed: " + std::to_string(Blocks / 1000) + "k" : "";
+
 		std::cout << std::right;
 		std::cout << "# " << std::setw(18) << std::left << Title << " Impl: " << std::right << std::setw(7) << Impl.Time << TimestepStr() << " | "
-			"LEDA: " << std::setw(7) << Leda.Time << TimestepStr() << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << "\n";
+			"LEDA: " << std::setw(7) << Leda.Time << TimestepStr() << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << " " << BlockStr << "\n";
 	}
 
 public:
@@ -122,6 +130,7 @@ public:
 	}
 
 	void StartTest() {
+		CurrentBenchBlocks = 0;
 		RestartTimer();
 	}
 
@@ -133,13 +142,14 @@ public:
     void StopImpl() {
 		long long Duration = GetCurrent();
 		ImplTime.push_back(TestData(Duration));
+		BlockReads.push_back(CurrentBenchBlocks);
 	}
 
 	// Print the last added test.
-	void PrintLast(TestInfo info, const std::string& Title) {
-		tests.push_back(info);
+	void PrintLast(TestInfo Info, const std::string& Title) {
+		tests.push_back(Info);
 		size_t Index = ImplTime.size() - 1;
-		PrintBenchLine(Title, ImplTime[Index], LedaTime[Index]);
+		PrintBenchLine(Title, ImplTime[Index], LedaTime[Index], BlockReads[Index]);
 	}
 
 	// Calculate and print total stats.
@@ -147,29 +157,46 @@ public:
         bool ContainsInvalidResult = false;
 		TestData ImplTotal;
 		TestData LedaTotal;
+		long long BlocksTotal = 0;
 
 		std::array<TestData, TestTypeN> ImplPerType;
 		std::array<TestData, TestTypeN> LedaPerType;
-		
+		std::array<long long, TestTypeN> BlocksPerType = {0};
+
+
 
 		for (int i = 0; i < ImplTime.size(); ++i) {
 			ImplTotal += ImplTime[i];
 			LedaTotal += LedaTime[i];
+			BlocksTotal += BlockReads[i];
 
 			ImplPerType[to_underlying(tests[i].type)] += ImplTime[i];
 			LedaPerType[to_underlying(tests[i].type)] += LedaTime[i];
+			BlocksPerType[to_underlying(tests[i].type)] += BlockReads[i];
 		}
 
-
-
 		std::cout << "\n";
-		PrintBenchLine("Totals: ", ImplTotal, LedaTotal);
+		PrintBenchLine("Totals: ", ImplTotal, LedaTotal, BlocksTotal);
 
-		PrintBenchLine("Get: ", ImplPerType[to_underlying(TestType::Get)], LedaPerType[to_underlying(TestType::Get)]);
-		PrintBenchLine("Add: ", ImplPerType[to_underlying(TestType::Add)], LedaPerType[to_underlying(TestType::Add)]);
-		PrintBenchLine("Del: ", ImplPerType[to_underlying(TestType::Del)], LedaPerType[to_underlying(TestType::Del)]);
-		PrintBenchLine("Iter: ", ImplPerType[to_underlying(TestType::Iterate)], LedaPerType[to_underlying(TestType::Iterate)]);
+		PrintBenchLine("Get: ", 
+					   ImplPerType[to_underlying(TestType::Get)], 
+					   LedaPerType[to_underlying(TestType::Get)], 
+					   BlocksPerType[to_underlying(TestType::Get)]);
 
+		PrintBenchLine("Add: ", 
+					   ImplPerType[to_underlying(TestType::Add)], 
+					   LedaPerType[to_underlying(TestType::Add)], 
+					   BlocksPerType[to_underlying(TestType::Add)]);
+
+		PrintBenchLine("Del: ", 
+					   ImplPerType[to_underlying(TestType::Del)], 
+					   LedaPerType[to_underlying(TestType::Del)], 
+					   BlocksPerType[to_underlying(TestType::Del)]);
+
+		PrintBenchLine("Iter: ", 
+					   ImplPerType[to_underlying(TestType::Iterate)], 
+					   LedaPerType[to_underlying(TestType::Iterate)], 
+					   BlocksPerType[to_underlying(TestType::Iterate)]);
 	}
 };
 
@@ -236,5 +263,12 @@ struct AggregateTimer {
 };
 
 
+#ifdef DECLARE_EXTERN_TESTBENCH_VARS
+# if COUNT_BLOCKS
+#  define INCR_BLOCKS() do{ ++bench.CurrentBenchBlocks; }while(0)
+# endif
+extern AggregateTimer timer;
+extern Benchmark bench;
+#endif
 
 #endif //__TESTBENCH_H_

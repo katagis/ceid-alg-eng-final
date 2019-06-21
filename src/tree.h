@@ -36,6 +36,7 @@ struct Iterator {
 		++index;
 		if (index >= leaf->childrenCount) {
 			nextLeaf();
+			INCR_BLOCKS();
 		}
 	}
 
@@ -111,7 +112,12 @@ struct Tree {
 
 	// Return true if actually removed something
 	bool remove(const KeyType& key) {
-		return removePop(key) != nullptr;
+		Iterator loc = find(key);
+		if (!loc.exists) {
+			return false;
+		}
+		deleteAt(loc);
+		return true;
 	}
 
 	// Remove a key and return the pointer to the element if it existed.
@@ -170,6 +176,7 @@ struct Tree {
 
 		while (!nextNode->isLeaf) {
 			nextNode = nextNode->ptrs[0];
+			INCR_BLOCKS();
 		}
 		assert(nextNode->isLeaf);
 		return Iterator(nextNode , 0, true);
@@ -182,6 +189,7 @@ struct Tree {
 		while (!nextNode->isLeaf) {
 			nextLoc = nextNode->getIndexOf(key);
 			nextNode = nextNode->ptrs[nextLoc];
+			INCR_BLOCKS();
 		}
 
 		bool found = false;
@@ -293,6 +301,9 @@ private:
 
 		int index = initial->parent->getIndexOf(initial->keys[0]);
 
+		// The selected pointer is not cached so we need a new block for the node.
+		INCR_BLOCKS();
+
 		TNode* merge;
 		bool mergeToLeft = true;
 		KeyType mergeKey;
@@ -385,6 +396,7 @@ private:
 			return;
 		}
 
+		INCR_BLOCKS();
 		int index = initial->parent->getIndexOf(initial->keys[0]);
 
 		TNode* left;
@@ -424,7 +436,7 @@ private:
 		elementCount--;
 		return data;
 	}
-
+	// TODO: add insertAt
 	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
 		Iterator location = find(key);
 		if (location.exists) {

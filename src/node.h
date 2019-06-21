@@ -1,16 +1,17 @@
 #ifndef __NODE_H_
 #define __NODE_H_
 
-#include "testbench.h"
-AggregateTimer Timer;
 #define NDEBUG
-
 #include <array>
 #include <utility>
 #include <cassert>
 #include <string>
 #include <iostream>
 #include <functional>
+
+#ifndef INCR_BLOCKS
+#define INCR_BLOCKS() do{ }while(0)
+#endif
 
 typedef unsigned int uint;
 
@@ -80,6 +81,7 @@ struct Node {
 		static uint total_uids = 0;
 		uid = total_uids++;
 		setNextLeaf(nullptr);
+		INCR_BLOCKS();
 	}
 
 	bool isRoot() const {
@@ -335,6 +337,5 @@ struct Node {
 		}
 	}
 };
-
 
 #endif // __NODE_H_

@@ -1,19 +1,24 @@
 #ifndef _TESTS
-#include <iostream>
-#include "tree.h"
-#include <unordered_set>
-#include "random_gen.h"
 
+#define DECLARE_EXTERN_TESTBENCH_VARS
+#define COUNT_BLOCKS 1
+#include "testbench.h"
+
+#include "tree.h"
+#include "random_gen.h"
 #include <LEDA/core/impl/ab_tree.h>
 #include <LEDA/core/dictionary.h>
+#include <iostream>
+#include <unordered_set>
+
+AggregateTimer timer;
+Benchmark bench;
 
 //constexpr int NodeSize = 338; // blocksize
-constexpr int NodeSize = 128;
+constexpr int NodeSize = 16;
 
 using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
 using ImplTree = Tree<int, int, NodeSize>;
-
-Benchmark bench;
 
 void add_no_bench(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	
@@ -121,7 +126,7 @@ void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	bench.PrintLast({ TestType::Del }, "Del " + std::to_string(N / 1000) + "k");
 }
 
-void delete_exact_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
+void delete_exact_test(LedaTree& leda, ImplTree& impl, unsigned int N, int seed) {
 	rd::seed(seed);
 
 	if (N > (impl.size() * 3) / 4) {
@@ -130,7 +135,7 @@ void delete_exact_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	}
 
 	std::vector<int> numbers;
-	for (int i = 0; i < N; ) {
+	for (unsigned int i = 0; i < N; ) {
 		int number = rd::get();
 		if (impl.find(number).exists) {
 			numbers.push_back(rd::get());
@@ -218,7 +223,7 @@ int main() {
 	bench.Print();
 
 
-	Timer.Print("Generic Timer");
+	timer.Print("Generic Timer");
 
 	return 0;
 }
