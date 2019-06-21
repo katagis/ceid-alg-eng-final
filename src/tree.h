@@ -84,14 +84,12 @@ struct Tree {
 
 	Tree() {
 		root = new TNode();
-		root->isLeaf = true;
-		elementCount = 0;
-		height = 0;
-		nodes = 1;
+		init();
 	}
 
 	~Tree() {
 		clear();
+		delete root;
 	}
 
 	// Return if an insert was actually made.
@@ -129,8 +127,34 @@ struct Tree {
 		return elementCount;
 	}
 
-	void clear() {
+	void clearNode(TNode* node) {
+		if (node->isLeaf) {
+			delete node;
+			return;
+		}
+		for (int i = 0; i <= node->childrenCount; ++i) {
+			clearNode(node->ptrs[i]);
+		}
+		delete node;
+	}
 
+	void clear() {
+		if (root->childrenCount == 0) {
+			return;
+		}
+		for (int i = 0; i <= root->childrenCount; ++i) {
+			clearNode(root->ptrs[i]);
+		}
+		init();
+	}
+
+	// Clear with a destructor for all elements
+	template<typename PRED>
+	void clearDestructor(PRED destructor) {
+		for (Iterator it = first(); it.isValid(); ++it) {
+			destructor(it.value());
+		}
+		clear();
 	}
 
 	bool empty() const {
@@ -151,7 +175,6 @@ struct Tree {
 		return Iterator(nextNode , 0, true);
 	}
 
-
 	Iterator find(const KeyType& key) const {
 		int nextLoc;
 		TNode* nextNode = root;
@@ -168,6 +191,14 @@ struct Tree {
 	}
 
 private:
+	void init() {
+		root->isLeaf = true;
+		root->childrenCount = 0;
+		elementCount = 0;
+		height = 0;
+		nodes = 1;
+	}
+
 	void setAtIt(Iterator location, DataType* data) {
 		assert(location.exists);
 		location.leaf->setAsData(location.index, data);

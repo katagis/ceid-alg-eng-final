@@ -18,9 +18,7 @@ typedef unsigned int uint;
 
 // 
 // TODO list:
-// 1. Implement GetRange and nextNode ptrs & iterators.
-// 2. Implement tree.clear
-// 3. Implement simulated disk access count
+// 1. Implement simulated disk access count
 // 
 
 template<typename ArrayType, std::size_t ArraySize>
