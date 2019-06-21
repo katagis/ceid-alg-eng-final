@@ -65,10 +65,11 @@ struct Node {
 	int childrenCount;
 	bool isLeaf;
 	Node* parent;
+	Node* next;
 	// 2 seperate arrays for better cache management, since iterating only keys is frequent.
 	std::array<KeyType, N> keys;
 	std::array<Node*, N + 1> ptrs;
-	
+
 	int uid;
 	// this does not resolve to actual struct wide static 
 	// but static for this specific template instantiation
@@ -109,12 +110,12 @@ struct Node {
 
 	Node* getNextLeaf() const {
 		assert(isLeaf);
-		return ptrs[N];
+		return next;
 	}
 
 	void setNextLeaf(Node* ptr) {
 		assert(isLeaf);
-		ptrs[N] = ptr;
+		next = ptr;
 	}
 	
 	//
@@ -277,7 +278,6 @@ struct Node {
 			ptrInsert->parent = initialNode;
 		}
 		else if (insertIndex == HN) {
-
 			for (int i = N; i > HN; --i) {
 				outNewNode->ptrs[i - HN] = initialNode->ptrs[i];
 				outNewNode->keys[i - HN - 1] = MoveVal(initialNode->keys[i - 1]);
@@ -289,10 +289,6 @@ struct Node {
 			initialNode->childrenCount = HN;
 		}
 		else {
-			// PERF: for now we do the same as above,
-			// this moves some items 2 times and can be optimised
-
-			// PERF: split loops for better cache
 			for (int i = N; i - 1 > HN; --i) {
 				outNewNode->ptrs[i - 1 - HN] = initialNode->ptrs[i];
 				outNewNode->keys[i - 1 - HN - 1] = MoveVal(initialNode->keys[i - 1]);
@@ -323,25 +319,6 @@ struct Node {
 		deleteFromArray(ptrs, childrenCount + !isLeaf, ptr);
 		childrenCount--;
 		return pos;
-	}
-
-	void moveInfoInplaceInternal(int rangeStart, int rangeEnd, int offset, const KeyType& leftKey) {
-		assert(!isLeaf);
-		assert(rangeEnd <= N);
-		assert(rangeEnd + offset <= N);
-		assert(rangeStart + offset >= 0);
-		assert(offset > 0);
-
-		// PERF: possible to move here
-		for (int i = rangeEnd + offset; i >= rangeStart + offset; --i) {
-			if (i - offset - 1 >= 0) {
-				keys[i - 1] = keys[i - offset - 1];
-			}
-			else {
-				keys[i - 1] = leftKey;
-			}
-			ptrs[i] = ptrs[i - offset];
-		}
 	}
 };
 
