@@ -102,12 +102,13 @@ struct Tree {
 		return insertKeyVal(key, data, false);
 	}
 
-	DataType* get(const KeyType& key) const {
+	bool get(const KeyType& key, DataType*& outData) const {
 		Iterator loc = find(key);
 		if (!loc.exists) {
-			return nullptr;
+			return false;
 		}
-		return loc.leaf->getAsData(loc.index);
+		outData = loc.leaf->getAsData(loc.index);
+		return true;
 	}
 
 	// Return true if actually removed something
@@ -121,12 +122,14 @@ struct Tree {
 	}
 
 	// Remove a key and return the pointer to the element if it existed.
-	DataType* removePop(const KeyType& key) {
+	bool removePop(const KeyType& key, DataType*& popped) {
 		Iterator loc = find(key);
 		if (!loc.exists) {
-			return nullptr;
+			return false;
 		}
-		return deleteAt(loc);
+		popped = loc.value();
+		deleteAt(loc);
+		return true;
 	}
 
 	uint size() const {
@@ -211,6 +214,43 @@ private:
 		assert(location.exists);
 		location.leaf->setAsData(location.index, data);
 	}
+
+
+	DataType* deleteAt(Iterator location) {
+		DataType* data = location.leaf->getAsData(location.index);
+		deleteEntryLeaf(location.leaf, location.leaf->keys[location.index], location.leaf->ptrs[location.index]);
+		elementCount--;
+		return data;
+	}
+
+	void insertAt(Iterator location, const KeyType& key, DataType* data) {
+		if (location.leaf->childrenCount < N) {
+			location.leaf->insertAtLeaf(location.index + 1, key, data);
+		}
+		else {
+			// split node,
+			TNode* second = TNode::splitAndInsertLeaf(location.leaf, location.index + 1, key, data);
+			second->isLeaf = true;
+			nodes++;
+
+			// now update parent, maybe multiple parents
+			insertInParent(location.leaf, second, second->keys[0]);
+		}
+		elementCount++;
+	}
+
+	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
+		Iterator location = find(key);
+		if (location.exists) {
+			if (modifyIfExists) {
+				setAtIt(location, data);
+			}
+			return false;
+		}
+		insertAt(location, key, data);
+		return true;
+	}
+
 
 	void redistributeBetweenLeaves(TNode* left, TNode* right, const KeyType& keyInBetween) {
 		assert(left->keys[0] < right->keys[0]);
@@ -428,38 +468,6 @@ private:
 		else { // redistribute
 			redistributeBetweenLeaves(left, right, mergeKey);
 		}
-	}
-
-	DataType* deleteAt(Iterator location) {
-		DataType* data = location.leaf->getAsData(location.index);
-		deleteEntryLeaf(location.leaf, location.leaf->keys[location.index], location.leaf->ptrs[location.index]);
-		elementCount--;
-		return data;
-	}
-	// TODO: add insertAt
-	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
-		Iterator location = find(key);
-		if (location.exists) {
-			if (modifyIfExists) {
-				setAtIt(location, data);
-			}
-			return false;
-		}
-
-		if (location.leaf->childrenCount < N) {
-			location.leaf->insertAtLeaf(location.index + 1, key, data);
-		}
-		else {
-			// split node,
-			TNode* second = TNode::splitAndInsertLeaf(location.leaf, location.index + 1, key, data);
-			second->isLeaf = true;
-			nodes++;
-
-			// now update parent, maybe multiple parents
-			insertInParent(location.leaf, second, second->keys[0]);
-		}
-		elementCount++;
-		return true;
 	}
 
 	// use after split to update leftNode, new rightNode the tree parent

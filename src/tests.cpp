@@ -1,7 +1,7 @@
 #ifdef _TESTS
 #define CATCH_CONFIG_MAIN
 #include "tree.h"
-
+#include "random_gen.h"
 #include "catch.hpp"
 #include <unordered_set>
 
@@ -16,10 +16,12 @@ TEST_CASE( "set/get/del, size: 1", "[tree]" ) {
 
 	REQUIRE(tree.size() == 1);
 
-	REQUIRE(tree.get("foo"));		 // value should exist
-	REQUIRE(*tree.get("foo") == 1); // value should be updated
+	REQUIRE(tree.find("foo").exists);		 // value should exist
+	int* val;
+	tree.get("foo", val);
+	REQUIRE(*val == 1); // value should be updated
 
-	REQUIRE_FALSE(tree.get("foo2"));
+	REQUIRE_FALSE(tree.find("foo2").exists);
 
 	REQUIRE(tree.size() == 1);
 
@@ -27,7 +29,7 @@ TEST_CASE( "set/get/del, size: 1", "[tree]" ) {
 	REQUIRE(tree.size() == 1);
 
 	REQUIRE(tree.remove("foo"));	 // return true if something was removed
-	REQUIRE_FALSE(tree.get("foo")); // no item at such 
+	REQUIRE_FALSE(tree.find("foo").exists); // no item at such 
 		
 	REQUIRE(tree.size() == 0);
 }
@@ -46,14 +48,14 @@ TEST_CASE("set/get/del/clear, size: 1000", "[tree]") {
 
 	REQUIRE(tree.size() == 1000);
 	for (int i = 0; i < 1000; ++i) {
-		REQUIRE(tree.get(i));
-		REQUIRE(*tree.get(i) == i);
+		int* num;
+		REQUIRE(tree.get(i, num));
+		REQUIRE(*num == i);
 	}
 
-	/*tree.clear();
+	tree.clear();
 	REQUIRE(tree.size() == 0);
 	REQUIRE(tree.empty());
-	*/
 }
 
 TEST_CASE("random insert even", "[tree]") {
@@ -75,10 +77,10 @@ TEST_CASE("random insert even", "[tree]") {
 
 	REQUIRE(set.size() == tree.size());
 	for (auto number : set) {
-		int* found = tree.get(number);
-		REQUIRE(found);
-		REQUIRE((found && *found == number));
-		// TODO: memory leak if test fails.
+		int* found;
+		bool exists = tree.get(number, found);
+		REQUIRE(exists);
+		REQUIRE((exists && *found == number));
 		if (found) {
 			delete found;
 		}
@@ -104,10 +106,9 @@ TEST_CASE("random insert odd", "[tree]") {
 
 	REQUIRE(set.size() == tree.size());
 	for (auto number : set) {
-		int* found = tree.get(number);
-		REQUIRE(found);
-		REQUIRE((found && *found == number));
-		// TODO: memory leak if test fails.
+		int* found;
+		REQUIRE(tree.get(number, found));
+		REQUIRE(*found == number);
 		if (found) {
 			delete found;
 		}
@@ -147,12 +148,13 @@ void verifyIterator(Tree<int, int, NodeSize>& tree, std::unordered_set<int>& set
 
 template<uint NodeSize, bool Verify, uint Size>
 void testAll(int seed) {
+	constexpr int MaxNum = 4000;
 	Tree<int, int, NodeSize> tree;
 
 	std::unordered_set<int> set;
 
 	rd::seed(seed);
-	rd::setMax(8000);
+	rd::setMax(MaxNum);
 
 
 	for (int i = 0; i < Size; ++i) {
@@ -169,9 +171,9 @@ void testAll(int seed) {
 	verifyIterator(tree, set);
 	
 	for (auto number : set) {
-		int* found = tree.get(number);
-		REQUIRE(found);
-		REQUIRE((found && *found == number));
+		int* found;
+		REQUIRE(tree.get(number, found));
+		REQUIRE(*found == number);
 	}
 	
 	for (int n = 0; n < Size; ++n) {
@@ -193,15 +195,14 @@ void testAll(int seed) {
 				continue;
 			}
 
-			int* deleted = tree.removePop(number);
-
-			bool treeDidDelete = deleted != nullptr;
+			int* deleted;
+			bool treeDidDelete = tree.removePop(number, deleted);
 
 			if constexpr (Verify) {
 				tree.validate_ptrs();
 				for (auto znumber : set) {
-					int* found = tree.get(znumber);
-					if (!found) {
+					auto found = tree.find(znumber);
+					if (!found.exists) {
 						std::cerr << znumber << " failed @" << i << " after deleting: " << number << std::endl;
 						getchar();
 						break;
@@ -219,17 +220,21 @@ void testAll(int seed) {
 
 	REQUIRE(set.size() == tree.size());
 	for (auto number : set) {
-		int* found = tree.get(number);
-		REQUIRE(found);
-		REQUIRE((found && *found == number));
+		int* found;
+		REQUIRE(tree.get(number, found));
+		REQUIRE(*found == number);
 	}
 
-	for (int number = 0; number < 8000; ++number) {
+	for (int number = 0; number < MaxNum; ++number) {
 		bool didDelete = set.erase(number) > 0;
-		int* deleted = tree.removePop(number);
 
-		REQUIRE((deleted != nullptr) == didDelete);
-		delete deleted;
+		int* elem;
+		bool del = tree.removePop(number, elem);
+
+		REQUIRE(del == didDelete);
+		if (del) {
+			delete elem;
+		}
 	}
 
 	REQUIRE(set.size() == tree.size());
@@ -237,10 +242,10 @@ void testAll(int seed) {
 }
 
 TEST_CASE("test all 3,4,5,6", "[tree]") {
-	testAll<3, true, 1000>(1);
-	testAll<4, true, 1000>(2);
-	testAll<5, true, 1000>(3);
-	testAll<6, true, 1000>(4);
+	testAll<3, true, 800>(1);
+	testAll<4, true, 800>(2);
+	testAll<5, true, 800>(3);
+	testAll<6, true, 800>(4);
 }
 
 TEST_CASE("test iterator", "[tree]") {

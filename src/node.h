@@ -15,12 +15,15 @@
 
 typedef unsigned int uint;
 
-#define MoveVal(expression) std::move(expression)
+//
+// TODO:
+// Do not search in parent for insert, search if parent->key[0] < intermediateKey, otherwise get Next
+// Move next to ptrs[0] instead of ptrs[N]
+// Fix left,right at insert in parent.
+// Check performance for std::string / comparison operator keys
+//
 
-// 
-// TODO list:
-// 1. Implement simulated disk access count
-// 
+#define MoveVal(expression) std::move(expression)
 
 template<typename ArrayType, std::size_t ArraySize>
 void insertAtArray(std::array<ArrayType, ArraySize>& arr, int lastIndex, int location, const ArrayType& elem) {
@@ -126,8 +129,6 @@ struct Node {
 	// without any jump. (Verfied using Compiler Explorer at https //godbolt.org/)
 	//
 
-	using NumType = unsigned int; // unsigned int gives the best performance
-
 	// Expects found == false when called
 	int getIndexOfFound(const KeyType& key, bool& found) const {
 
@@ -147,10 +148,10 @@ struct Node {
 			return 0;
 		}
 
-		NumType left = 0;
-		NumType middle = 0;
-		NumType half;
-		NumType len = childrenCount;
+		uint left = 0;
+		uint middle = 0;
+		uint half;
+		uint len = childrenCount;
 
 		while ((half = len / 2) > 0) {
 			middle = left + half;
@@ -172,10 +173,10 @@ struct Node {
 			return 0;
 		}
 
-		NumType left = 0;
-		NumType middle = 0;
-		NumType half;
-		NumType len = childrenCount;
+		uint left = 0;
+		uint middle = 0;
+		uint half;
+		uint len = childrenCount;
 
 		while ((half = len / 2) > 0) {
 			middle = left + half;
