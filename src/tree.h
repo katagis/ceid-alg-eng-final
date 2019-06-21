@@ -288,12 +288,14 @@ private:
 		}
 	}
 
-	void redistributeBetween(TNode* left, TNode* right, bool smallerLeft, const KeyType& keyInBetween) {
+	void redistributeBetween(TNode* left, TNode* right, const KeyType& keyInBetween) {
 		assert(left->keys[0] < right->keys[0]);
 		assert(keyInBetween <= right->keys[0]);
 		assert(!left->isLeaf);
 
+		bool smallerLeft = left->childrenCount < right->childrenCount;
 		TNode* parent = left->parent;
+
 		if (smallerLeft) {
 			left->insertAtInternal(left->childrenCount, keyInBetween, right->ptrs[0]);
 			left->ptrs[left->childrenCount]->parent = left;
@@ -344,70 +346,47 @@ private:
 		// The selected pointer is not cached so we need a new block for the node.
 		INCR_BLOCKS();
 
-		TNode* merge;
-		bool mergeToLeft = true;
-		KeyType mergeKey;
+		KeyType& mergeKey = (index == 0) ? initial->parent->keys[0] : initial->parent->keys[index - 1];
+		
+		TNode* left;
+		TNode* right;
+		
 		if (index == 0) {
 			// get the right 
-			merge = initial->parent->ptrs[1];
-			mergeToLeft = false;
-			mergeKey = initial->parent->keys[0];
+			left = initial;
+			right = initial->parent->ptrs[1];;
 		}
 		else {
 			// get left
-			merge = initial->parent->ptrs[index - 1];
-			mergeKey = initial->parent->keys[index - 1];
+			left = initial->parent->ptrs[index - 1];
+			right = initial;
 		}
 
-		bool CanMerge = initial->childrenCount + 1
-				+ merge->childrenCount + 1 <= N + 1;
+		bool CanMerge = left->childrenCount + 1
+				+ right->childrenCount + 1 <= N + 1;
 
 		if (CanMerge) {
-			if (!mergeToLeft) {
-				const int leftChildren = initial->childrenCount;
-				const int rightChildren = merge->childrenCount;
+			const int leftChildren = left->childrenCount;
+			const int rightChildren = right->childrenCount;
 
-				merge->moveInfoInplaceInternal(0, rightChildren, leftChildren + 1, mergeKey);
+			left->keys[leftChildren] = mergeKey;
+			left->ptrs[leftChildren + 1] = right->ptrs[0];
+			left->ptrs[leftChildren + 1]->parent = left;
 
-				merge->ptrs[0] = initial->ptrs[0];
-				merge->ptrs[0]->parent = merge;
-
-				for (int i = 0; i < leftChildren; ++i) {
-					merge->keys[i] = initial->keys[i];
-					merge->ptrs[i + 1] = initial->ptrs[i + 1];
-					merge->ptrs[i + 1]->parent = merge;
-				}
-
-				merge->childrenCount = leftChildren + rightChildren + 1;
+			for (int i = 0; i < rightChildren; ++i) {
+				left->keys[i + leftChildren + 1] = right->keys[i];
+				left->ptrs[i + leftChildren + 1 + 1] = right->ptrs[i + 1];
+				left->ptrs[i + leftChildren + 1 + 1]->parent = left;
 			}
-			else {
-				const int leftChildren = merge->childrenCount;
-				const int rightChildren = initial->childrenCount;
-
-				merge->keys[leftChildren] = mergeKey;
-				merge->ptrs[leftChildren + 1] = initial->ptrs[0];
-				merge->ptrs[leftChildren + 1]->parent = merge;
-
-				for (int i = 0; i < rightChildren; ++i) {
-					merge->keys[i + leftChildren + 1] = initial->keys[i];
-					merge->ptrs[i + leftChildren + 1 + 1] = initial->ptrs[i + 1];
-					merge->ptrs[i + leftChildren + 1 + 1]->parent = merge;
-				}
-				merge->childrenCount = leftChildren + rightChildren + 1;
-			}
-			deleteEntryInternal(initial->parent, mergeKey, initial);
-			delete initial;
+			left->childrenCount = leftChildren + rightChildren + 1;
+			deleteEntryInternal(left->parent, mergeKey, right);
+			delete right;
 			nodes--;
 		}
 		else { // redistribute
-			bool shouldRedistribute = std::abs(initial->childrenCount - merge->childrenCount) > 1;
+			bool shouldRedistribute = std::abs(left->childrenCount - right->childrenCount) > 1;
 			if (shouldRedistribute) {
-				if (mergeToLeft) {
-					redistributeBetween(merge, initial, merge->childrenCount < initial->childrenCount, mergeKey);
-				}
-				else {
-					redistributeBetween(initial, merge, initial->childrenCount < merge->childrenCount, mergeKey);
-				}
+				redistributeBetween(left, right, mergeKey);
 			}
 		}
 	}
@@ -486,11 +465,8 @@ private:
 			height++;
 			return;
 		}
-
-
 		TNode* parent = leftNode->parent;
 
-		// PERF: maybe cache something to avoid searching in the parent again? Path from root in first search down?
 		int insertLoc = parent->getIndexOf(rightMinKey);
 
 		if (parent->childrenCount < N) {

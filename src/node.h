@@ -17,9 +17,7 @@ typedef unsigned int uint;
 
 //
 // TODO:
-// Do not search in parent for insert, search if parent->key[0] < intermediateKey, otherwise get Next
 // Move next to ptrs[0] instead of ptrs[N]
-// Fix left,right at insert in parent.
 // Check performance for std::string / comparison operator keys
 //
 
@@ -188,6 +186,14 @@ struct Node {
 		return left + 1;
 	}
 
+	bool isLeftMost(const KeyType& key) const {
+		return key < keys[0];
+	}
+
+	bool isRightMost(const KeyType& key) const {
+		return key >= keys[childrenCount - 1];
+	}
+
 	void insertAtLeaf(int index, const KeyType& key, DataType* data) {
 		assert(isRoot() || childrenCount + 1 >= N / 2);
 		assert(isLeaf);
@@ -217,7 +223,6 @@ struct Node {
 		if (insertIndex < HN) {
 			// Our element is in the left node
 
-			// PERF: split loops for better cache
 			for (int i = N - 1; i >= HN - Parity; --i) {
 				rightNode->keys[i - HN + Parity] = MoveVal(initialNode->keys[i]);
 				rightNode->ptrs[i - HN + Parity] = initialNode->ptrs[i];
@@ -227,17 +232,20 @@ struct Node {
 			initialNode->insertAtLeaf(insertIndex, key, data);
 		}
 		else {
+			int i;
+			for (i = N - 1; i >= insertIndex; --i) {
+				rightNode->keys[i - HN + 1] = MoveVal(initialNode->keys[i]);
+				rightNode->ptrs[i - HN + 1] = initialNode->ptrs[i];
+			}
+			rightNode->keys[i - HN + 1] = MoveVal(key);
+			rightNode->ptrs[i - HN + 1] = reinterpret_cast<Node*>(data);
 
-			// PERF: for now we do the same as above,
-			// this moves some items 2 times and can be optimised
-			
-			for (int i = N - 1; i >= HN; --i) {
+			for (; i >= HN; --i) {
 				rightNode->keys[i - HN] = MoveVal(initialNode->keys[i]);
 				rightNode->ptrs[i - HN] = initialNode->ptrs[i];
 			}
-			rightNode->childrenCount = HN - Parity;
+			rightNode->childrenCount = HN - Parity + 1;
 			initialNode->childrenCount = HN;
-			rightNode->insertAtLeaf(insertIndex - HN, key, data);
 		}
 
 		return rightNode;
@@ -254,8 +262,6 @@ struct Node {
 		if (insertIndex < HN) {
 
 			// Our element is in the left node
-
-			// PERF: split loops for better cache
 			for (int i = N; i > HN; --i) {
 				outNewNode->ptrs[i - HN] = initialNode->ptrs[i];
 				outNewNode->keys[i - HN - 1] = MoveVal(initialNode->keys[i - 1]);
