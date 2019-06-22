@@ -3,11 +3,6 @@
 
 #include "node.h"
 
-
-// Requirements for types:
-// key: operator< & operator==, movable, copy-constructuble
-// 
-
 // Not an actuall stl like iterator but good enough for our example
 // can be used to linearly iterate over elements with O(1) increment for the next element
 template<typename KeyType, typename DataType, uint N>
@@ -65,10 +60,7 @@ struct Iterator {
 	}
 };
 
-// Requirements for types:
-// key: operator< & operator==, movable, copy-constructuble
-// 
-template<typename KeyType, typename DataType, uint N = 10>
+template<typename KeyType, typename DataType, uint N = 16>
 struct Tree {
 	typedef Node<KeyType, DataType, N> TNode;
 	typedef Iterator<KeyType, DataType, N> TIterator;
@@ -148,11 +140,10 @@ struct Tree {
 	}
 
 	void clear() {
-		if (root->childrenCount == 0) {
-			return;
-		}
-		for (int i = 0; i <= root->childrenCount; ++i) {
-			clearNode(root->ptrs[i]);
+		if (!root->isLeaf) {
+			for (int i = 0; i <= root->childrenCount; ++i) {
+				clearNode(root->ptrs[i]);
+			}
 		}
 		init();
 	}
@@ -485,123 +476,126 @@ private:
 		}
 	}
 
-#ifdef CPP17
 public:
-	void validate_ptrs() const {
-		std::function<void(TNode*)> for_node;
-
-		for_node = [&](TNode* node) -> void {
-			if (node->childrenCount < 0 || node->childrenCount > N) {
-				std::cerr << "found incorrect children count!\n";
-				getchar();
-			}
-
-			if (node->isLeaf) {
-				TNode* nextLeaf = node->getNextLeaf();
-
-				if (nextLeaf) {
-					if (nextLeaf->keys[0] <= node->keys[node->childrenCount - 1]) {
-						std::cerr << "found incorrect next node ptr!\n";
-						getchar();
-					}
-				}
-
-				return;
-			}
-
-			if (node->childrenCount >= 1) {
-				if (node->ptrs[0] == node->ptrs[1]) {
-					dot_print_node(node);
-					std::cerr << "found double ptr node!\n";
-					getchar();
-				}
-			}
-
-			if (node->childrenCount >= 2) {
-				if (node->keys[0] > node->keys[1]) {
-					this->dot_print();
-					std::cerr << "found key error!\n";
-					getchar();
-				}
-			}
-
-			for (int i = 0; i < node->childrenCount + 1; ++i) {
-				if (node->ptrs[i]->parent != node) {
-					std::cerr << "found incorrect node!\n";
-					dot_print_node(node);
-					getchar();
-				}
-				for_node(node->ptrs[i]);
-			}
-
-		};
-
-		for_node(root);
+	// checks and verfies the internal node connections & other 'assertations'
+	// this was used only during development as a debugging utility.
+	void checkIntegrity() {
+		checkNode(root);
 	}
 
-	void dot_print() const {
-		dot_print_node(root);
+	// To be able to use this KeyType AND DataType must have an operator<< for printing
+	void dotPrint() {
+		printAsTree(std::cout, root);
 	}
 
-	static void dot_print_node(TNode* start) {
-		constexpr char nl = '\n';
-		auto& out = std::cerr;
+private:
+	void checkNode(TNode* node) {
+		if (node->childrenCount < 0 || node->childrenCount > N) {
+			std::cerr << "found incorrect children count!\n";
+			abort();
+		}
 
-		out << "digraph tree {" << nl;
-		out << "node [shape=record];" << nl;
+		if (node->isLeaf) {
+			TNode* nextLeaf = node->getNextLeaf();
 
-		std::function<void(TNode*)> print_info;
-		std::function<void(TNode*)> print_conn;
-
-		print_info = [&](TNode* node) -> void {
-			out << "node_id" << node->uid << " [shape=record, label=\"";
-			if (!node->isLeaf) {
-				out << "<f" << 0 << "> # |";
+			if (nextLeaf) {
+				if (nextLeaf->keys[0] <= node->keys[node->childrenCount - 1]) {
+					std::cerr << "found incorrect next node ptr!\n";
+					abort();
+				}
 			}
-			for (int i = 0; i < N; ++i) {
-				if (i < node->childrenCount) {
-					if (!node->isLeaf) {
-						out << "<f" << i + 1 << "> " << node->keys[i] << "|";
-					}
-					else {
-						out << "<f" << i + 1 << "> " << node->keys[i] << "\\n" << *node->getAsData(i + 1) << "|";
-					}
 
+			return;
+		}
+
+		if (node->childrenCount >= 1) {
+			if (node->ptrs[0] == node->ptrs[1]) {
+				std::cerr << "found double ptr node!\n";
+				printAsTree(std::cerr, node);
+				abort();
+			}
+		}
+
+		if (node->childrenCount >= 2) {
+			if (node->keys[0] > node->keys[1]) {
+				std::cerr << "found key error!\n";
+				abort();
+			}
+		}
+
+		for (int i = 0; i < node->childrenCount + 1; ++i) {
+			if (node->ptrs[i]->parent != node) {
+				std::cerr << "found incorrect node!\n";
+				printAsTree(std::cerr, node);
+				abort();
+			}
+			checkNode(node->ptrs[i]);
+		}
+	}
+
+	static void printNodeInfo(std::ostream& out, TNode* node) {
+		out << "node_id" << node->uid << " [shape=record, label=\"";
+		if (!node->isLeaf) {
+			out << "<f" << 0 << "> # |";
+		}
+		for (int i = 0; i < N; ++i) {
+			if (i < node->childrenCount) {
+				if (!node->isLeaf) {
+					out << "<f" << i + 1 << "> " << node->keys[i] << "|";
 				}
 				else {
-					out << "<f" << i + 1 << "> ~|";
+					out << "<f" << i + 1 << "> " << node->keys[i] << "\\n" << *node->getAsData(i) << "|";
 				}
-			}
-			out << '\b';
-			out << "\"];" << nl;
 
-			if (!node->isLeaf) {
-				for (int i = 0; i < node->childrenCount + 1; ++i) {
-					print_info(node->ptrs[i]);
-				}
 			}
-		};
-
-		print_info(start);
-
-		print_conn = [&](TNode* node) -> void {
-			if (!node->isLeaf) {
-				for (int i = 0; i < node->childrenCount + 1; ++i) {
-					out << "\"node_id" << node->uid << "\":f" << i << " -> ";
-					out << "node_id" << node->ptrs[i]->uid << ";" << nl;
-					print_conn(node->ptrs[i]);
-				}
+			else {
+				out << "<f" << i + 1 << "> ~|";
 			}
-			if (!node->isRoot()) {
-				out << "\"node_id" << node->uid << "\" -> ";
-				out << "node_id" << node->parent->uid << " [color=brown];" << nl;
-			}
-		};
+		}
+		out << '\b';
+		out << "\"];\n";
 
-		print_conn(start);
-		out << "}" << nl;
+		if (!node->isLeaf) {
+			for (int i = 0; i < node->childrenCount + 1; ++i) {
+				printNodeInfo(out, node->ptrs[i]);
+			}
+		}
 	}
-#endif // CPP17
+
+	static void printConnection(std::ostream& out, TNode* node) {
+
+		// Print children connections
+		if (!node->isLeaf) {
+			for (int i = 0; i < node->childrenCount + 1; ++i) {
+				out << "\"node_id" << node->uid << "\":f" << i << " -> ";
+				out << "node_id" << node->ptrs[i]->uid << ";\n";
+				printConnection(out, node->ptrs[i]);
+			}
+		}
+		// Print parent pointers for debugging
+		//if (!node->isRoot()) {
+		//	out << "\"node_id" << node->uid << "\" -> ";
+		//	out << "node_id" << node->parent->uid << " [color=brown];\n";
+		//}
+		
+		// Print next ptr connection
+		// Using 'rank' messes up some dot generators but it is required if printing next ptrs.
+		//if (node->isLeaf && node->next != NULL) {
+		//	out << "\"node_id" << node->uid << "\" -> ";
+		//	out << "node_id" << node->next->uid << " [color=brown];\n";
+		//	out << "{rank = same; node_id" << node->uid << "; node_id" << node->next->uid << "};\n";
+		//}
+	}
+
+	static void printAsTree(std::ostream& out, TNode* start) {
+		out << "digraph tree {\n";
+		out << "node [shape=record];\n";
+
+		printNodeInfo(out, start);
+		printConnection(out, start);
+
+		out << "}\n";
+	}
 };
 
 #endif // __TREE_H_

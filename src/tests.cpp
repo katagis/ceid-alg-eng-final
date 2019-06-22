@@ -199,7 +199,7 @@ void testAll(int seed) {
 			bool treeDidDelete = tree.removePop(number, deleted);
 
 			if constexpr (Verify) {
-				tree.validate_ptrs();
+				tree.checkIntegrity();
 				for (auto znumber : set) {
 					auto found = tree.find(znumber);
 					if (!found.exists) {

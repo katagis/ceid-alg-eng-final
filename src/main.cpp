@@ -9,7 +9,6 @@
 #include <LEDA/core/impl/ab_tree.h>
 #include <LEDA/core/dictionary.h>
 #include <iostream>
-#include <unordered_set>
 
 AggregateTimer timer;
 Benchmark bench;
@@ -200,9 +199,8 @@ int main() {
 
 	std::vector<int*> ptrs;
 
+	int seed = 1;
 
-	int seed = 0;
-#ifndef _DEBUG
 	add_test	(ledaDic, implDic, 1000000, ++seed, ptrs);
 	get_test	(ledaDic, implDic, 1000000, ++seed);
 	delete_ex   (ledaDic, implDic,  500000, ++seed); 
@@ -217,11 +215,6 @@ int main() {
 	add_items   (ledaDic, implDic, 5 * 1000 * 1000);
 	iterate_all (ledaDic, implDic);
 	delete_ex   (ledaDic, implDic, 500000, ++seed);
-#else // in debug just run some basic stuff because all the tests take too much time
-	add_test(ledaDic, implDic, 2000000, 0, ptrs);
-	delete_test(ledaDic, implDic, 1000000, 11);
-	get_test(ledaDic, implDic, 2000000, 1);
-#endif
 
 	bench.Print();
 	timer.Print("Generic Timer");

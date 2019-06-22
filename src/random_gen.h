@@ -5,7 +5,7 @@
 #include <random>
 namespace rd {
 	std::mt19937 gen;
-	std::uniform_int_distribution<> dis;
+	std::uniform_int_distribution<> dis(0, 255);
 
 	void setMax(unsigned int newMax) {
 		dis = std::uniform_int_distribution<>(0, newMax - 1);
@@ -21,7 +21,7 @@ namespace rd {
 }
 #else // assume posix
 namespace rd {
-	unsigned int max = 0;
+	unsigned int max = 255;
 
 	void setMax(unsigned int newMax) {
 		max = newMax;
