@@ -11,30 +11,30 @@
 #include <set>
 #include <sstream>
 
-#ifdef USE_CHRONO
+#ifdef CPP17
 #include <chrono>
 namespace ch = std::chrono;
 #else 
 #include <sys/time.h>
 #endif
 
-enum class TestType : int {
+namespace {
+enum TestType : int {
 	Add = 0,
 	Get,
 	Del,
 	Iterate,
 	E_LAST
 };
-
-template<typename E>
-constexpr auto to_underlying(E e) noexcept {
-	return static_cast<std::underlying_type_t<E>>(e);
+#define TestTypeN ((size_t)(TestType::E_LAST))
 }
-constexpr size_t TestTypeN = to_underlying(TestType::E_LAST);
+
 
 struct TestInfo {
 	TestType type;
-	int LeafSize;
+
+	TestInfo(TestType inType)
+		: type(inType) {};
 };
 
 // All the data our Benchmark should store for 1 test.
@@ -79,7 +79,7 @@ private:
 		return " ms";
 	}
 
-#ifdef USE_CHRONO
+#ifdef CPP17
 	ch::time_point<ch::system_clock> StartTime;
 	void RestartTimer() {
 		StartTime = ch::system_clock::now();
@@ -104,10 +104,14 @@ private:
 
 	long long GetCurrent() const {
         struct timeval EndTime = GetUnixMicros();
+		long long micros;
 		if (EndTime.tv_sec == StartTime.tv_sec) {
-			return EndTime.tv_usec - StartTime.tv_usec;
+			micros = EndTime.tv_usec - StartTime.tv_usec;
 		}
-		return (EndTime.tv_sec - StartTime.tv_sec - 1) * 1000000 + (1000000 - StartTime.tv_usec) + EndTime.tv_usec;
+		else {
+			micros = (EndTime.tv_sec - StartTime.tv_sec - 1) * 1000000 + (1000000 - StartTime.tv_usec) + EndTime.tv_usec;
+		}
+		return micros / 1000;
 	}
 #endif
 
@@ -146,8 +150,8 @@ public:
 	}
 
 	// Print the last added test.
-	void PrintLast(TestInfo Info, const std::string& Title) {
-		tests.push_back(Info);
+	void PrintLast(TestType Info, const std::string& Title) {
+		tests.push_back(TestInfo(Info));
 		size_t Index = ImplTime.size() - 1;
 		PrintBenchLine(Title, ImplTime[Index], LedaTime[Index], BlockReads[Index]);
 	}
@@ -170,35 +174,36 @@ public:
 			LedaTotal += LedaTime[i];
 			BlocksTotal += BlockReads[i];
 
-			ImplPerType[to_underlying(tests[i].type)] += ImplTime[i];
-			LedaPerType[to_underlying(tests[i].type)] += LedaTime[i];
-			BlocksPerType[to_underlying(tests[i].type)] += BlockReads[i];
+			ImplPerType[(int)(tests[i].type)] += ImplTime[i];
+			LedaPerType[(int)(tests[i].type)] += LedaTime[i];
+			BlocksPerType[(int)(tests[i].type)] += BlockReads[i];
 		}
 
 		std::cout << "\n";
 		PrintBenchLine("Totals: ", ImplTotal, LedaTotal, BlocksTotal);
 
 		PrintBenchLine("Get: ", 
-					   ImplPerType[to_underlying(TestType::Get)], 
-					   LedaPerType[to_underlying(TestType::Get)], 
-					   BlocksPerType[to_underlying(TestType::Get)]);
+					   ImplPerType[(int)(TestType::Get)], 
+					   LedaPerType[(int)(TestType::Get)],
+					   BlocksPerType[(int)(TestType::Get)]);
 
 		PrintBenchLine("Add: ", 
-					   ImplPerType[to_underlying(TestType::Add)], 
-					   LedaPerType[to_underlying(TestType::Add)], 
-					   BlocksPerType[to_underlying(TestType::Add)]);
+					   ImplPerType[(int)(TestType::Add)],
+					   LedaPerType[(int)(TestType::Add)],
+					   BlocksPerType[(int)(TestType::Add)]);
 
 		PrintBenchLine("Del: ", 
-					   ImplPerType[to_underlying(TestType::Del)], 
-					   LedaPerType[to_underlying(TestType::Del)], 
-					   BlocksPerType[to_underlying(TestType::Del)]);
+					   ImplPerType[(int)(TestType::Del)],
+					   LedaPerType[(int)(TestType::Del)], 
+					   BlocksPerType[(int)(TestType::Del)]);
 
 		PrintBenchLine("Iter: ", 
-					   ImplPerType[to_underlying(TestType::Iterate)], 
-					   LedaPerType[to_underlying(TestType::Iterate)], 
-					   BlocksPerType[to_underlying(TestType::Iterate)]);
+					   ImplPerType[(int)(TestType::Iterate)], 
+					   LedaPerType[(int)(TestType::Iterate)], 
+					   BlocksPerType[(int)(TestType::Iterate)]);
 	}
 };
+
 
 struct dotted : std::numpunct<char> {
 	char do_thousands_sep()   const { 
@@ -221,9 +226,10 @@ struct dotted : std::numpunct<char> {
 	}
 };
 
+#ifdef CPP17
 struct AggregateTimer {
-	long long totalNanos = 0;
-	long long timesHit = 0;
+	long long totalNanos;
+	long long timesHit;
 
 	ch::time_point<ch::system_clock> StartTime;
 
@@ -261,6 +267,18 @@ struct AggregateTimer {
 		}
 	};
 };
+#else
+// todo: implement with unix time
+struct AggregateTimer {
+	void Start() {}
+	void Stop() {}
+	long long GetCurrent() const { return 0; }
+	void Print(const std::string& Title) const {}
+	struct Scope {
+		Scope(AggregateTimer& parent) {}
+	};
+};
+#endif
 
 
 #ifdef DECLARE_EXTERN_TESTBENCH_VARS

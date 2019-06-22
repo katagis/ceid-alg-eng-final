@@ -43,7 +43,7 @@ struct Iterator {
 	// true if the current position has any element that can be accessed.
 	// can be used for iteration loops as ending condition
 	bool isValid() const {
-		return leaf != nullptr;
+		return leaf != NULL;
 	}
 
 	// Skip to the first element of the next leaf
@@ -71,7 +71,7 @@ struct Iterator {
 template<typename KeyType, typename DataType, uint N = 10>
 struct Tree {
 	typedef Node<KeyType, DataType, N> TNode;
-	typedef Iterator<KeyType, DataType, N> Iterator;
+	typedef Iterator<KeyType, DataType, N> TIterator;
 
 	static const int Parity = N % 2;
 	static const int HN = N / 2 + Parity;
@@ -103,7 +103,7 @@ struct Tree {
 	}
 
 	bool get(const KeyType& key, DataType*& outData) const {
-		Iterator loc = find(key);
+		TIterator loc = find(key);
 		if (!loc.exists) {
 			return false;
 		}
@@ -113,7 +113,7 @@ struct Tree {
 
 	// Return true if actually removed something
 	bool remove(const KeyType& key) {
-		Iterator loc = find(key);
+		TIterator loc = find(key);
 		if (!loc.exists) {
 			return false;
 		}
@@ -123,7 +123,7 @@ struct Tree {
 
 	// Remove a key and return the pointer to the element if it existed.
 	bool removePop(const KeyType& key, DataType*& popped) {
-		Iterator loc = find(key);
+		TIterator loc = find(key);
 		if (!loc.exists) {
 			return false;
 		}
@@ -160,7 +160,7 @@ struct Tree {
 	// Clear with a destructor for all elements
 	template<typename PRED>
 	void clearDestructor(PRED destructor) {
-		for (Iterator it = first(); it.isValid(); ++it) {
+		for (TIterator it = first(); it.isValid(); ++it) {
 			destructor(it.value());
 		}
 		clear();
@@ -171,9 +171,9 @@ struct Tree {
 	}
 
 	// get an iterator to the leftmost item in the tree
-	Iterator first() const {
+	TIterator first() const {
 		if (empty()) {
-			return Iterator(nullptr, 0, false);
+			return TIterator(NULL, 0, false);
 		}
 		TNode* nextNode = root;
 
@@ -182,10 +182,10 @@ struct Tree {
 			INCR_BLOCKS();
 		}
 		assert(nextNode->isLeaf);
-		return Iterator(nextNode , 0, true);
+		return TIterator(nextNode , 0, true);
 	}
 
-	Iterator find(const KeyType& key) const {
+	TIterator find(const KeyType& key) const {
 		int nextLoc;
 		TNode* nextNode = root;
 
@@ -198,7 +198,7 @@ struct Tree {
 		bool found = false;
 		nextLoc = nextNode->getIndexOfFound(key, found);
 
-		return Iterator(nextNode, nextLoc - 1, found);
+		return TIterator(nextNode, nextLoc - 1, found);
 	}
 
 private:
@@ -210,20 +210,20 @@ private:
 		nodes = 1;
 	}
 
-	void setAtIt(Iterator location, DataType* data) {
+	void setAtIt(TIterator location, DataType* data) {
 		assert(location.exists);
 		location.leaf->setAsData(location.index, data);
 	}
 
 
-	DataType* deleteAt(Iterator location) {
+	DataType* deleteAt(TIterator location) {
 		DataType* data = location.leaf->getAsData(location.index);
 		deleteEntryLeaf(location);
 		elementCount--;
 		return data;
 	}
 
-	void insertAt(Iterator location, const KeyType& key, DataType* data) {
+	void insertAt(TIterator location, const KeyType& key, DataType* data) {
 		if (location.leaf->childrenCount < N) {
 			location.leaf->insertAtLeaf(location.index + 1, key, data);
 		}
@@ -240,7 +240,7 @@ private:
 	}
 
 	bool insertKeyVal(const KeyType& key, DataType* data, bool modifyIfExists = true) {
-		Iterator location = find(key);
+		TIterator location = find(key);
 		if (location.exists) {
 			if (modifyIfExists) {
 				setAtIt(location, data);
@@ -333,7 +333,7 @@ private:
 				return;
 			}
 			TNode* newRoot = initial->ptrs[0];
-			newRoot->parent = nullptr;
+			newRoot->parent = NULL;
 			root = newRoot;
 			delete initial;
 			nodes--;
@@ -391,7 +391,7 @@ private:
 		}
 	}
 
-	void deleteEntryLeaf(Iterator location) {
+	void deleteEntryLeaf(TIterator location) {
 		TNode* initial = location.leaf;
 		assert(initial);
 		assert(initial->isLeaf);
@@ -405,7 +405,7 @@ private:
 				return;
 			}
 			TNode* newRoot = initial->ptrs[0];
-			newRoot->parent = nullptr;
+			newRoot->parent = NULL;
 			root = newRoot;
 			delete initial;
 			nodes--;
@@ -455,7 +455,7 @@ private:
 	void insertInParent(TNode* leftNode, TNode* rightNode, const KeyType& rightMinKey) {
 
 		if (leftNode->isRoot()) {
-			assert(leftNode->parent == nullptr);
+			assert(leftNode->parent == NULL);
 			root = new TNode();
 			nodes++;
 			leftNode->parent = root;
@@ -476,7 +476,7 @@ private:
 			rightNode->parent = parent;
 		}
 		else {
-			TNode* added = nullptr;
+			TNode* added = NULL;
 			KeyType poppedKey = TNode::splitAndInsertInternal(parent, added, insertLoc, rightMinKey, rightNode);
 			nodes++;
 			added->isLeaf = false;
@@ -485,8 +485,8 @@ private:
 		}
 	}
 
+#ifdef CPP17
 public:
-
 	void validate_ptrs() const {
 		std::function<void(TNode*)> for_node;
 
@@ -601,6 +601,7 @@ public:
 		print_conn(start);
 		out << "}" << nl;
 	}
+#endif // CPP17
 };
 
 #endif // __TREE_H_

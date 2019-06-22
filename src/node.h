@@ -15,12 +15,6 @@
 
 typedef unsigned int uint;
 
-//
-// TODO:
-// Move next to ptrs[0] instead of ptrs[N]
-// Check performance for std::string / comparison operator keys
-//
-
 #define MoveVal(expression) std::move(expression)
 
 template<typename ArrayType, std::size_t ArraySize>
@@ -79,15 +73,15 @@ struct Node {
 	Node()
 		: isLeaf(false)
 		, childrenCount(0)
-		, parent(nullptr) {
+		, parent(NULL) {
 		static uint total_uids = 0;
 		uid = total_uids++;
-		setNextLeaf(nullptr);
+		setNextLeaf(NULL);
 		INCR_BLOCKS();
 	}
 
 	bool isRoot() const {
-		return parent == nullptr;
+		return parent == NULL;
 	}
 
 	DataType* getAsData(int index) const {

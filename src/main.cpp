@@ -15,10 +15,12 @@ AggregateTimer timer;
 Benchmark bench;
 
 //constexpr int NodeSize = 338; // blocksize
-constexpr int NodeSize = 128;
+#define NodeSize 128
+#define to_str(num) std::to_string((long long int)(num))
 
-using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
-using ImplTree = Tree<int, int, NodeSize>;
+
+typedef leda::dictionary<int, int*, leda::ab_tree> LedaTree;
+typedef Tree<int, int, NodeSize> ImplTree;
 
 void add_no_bench(LedaTree& leda, ImplTree& impl, int N, int seed, std::vector<int*>& outPtrs) {
 	
@@ -68,7 +70,7 @@ void add_test(LedaTree& leda, ImplTree& impl, int N, int seed, std::vector<int*>
 		impl.set(numbers[i], outPtrs[i]);
 	}
 	bench.StopImpl();
-	bench.PrintLast({ TestType::Add }, "Add " + std::to_string(N / 1000) + "k");
+	bench.PrintLast(TestType::Add, "Add " + to_str(N / 1000) + "k");
 }
 
 void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
@@ -82,8 +84,8 @@ void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	int ledaR = 0;
 	int implR = 0;
 	bench.StartTest();
-	for (int number : numbers) {
-		leda::dic_item r = leda.lookup(number);
+	for (int i = 0; i < N; ++i) {
+		leda::dic_item r = leda.lookup(numbers[i]);
 		if (r) {
 			ledaR ^= *leda.inf(r);
 		}
@@ -91,14 +93,14 @@ void get_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	bench.StopLeda();
 
 	bench.StartTest();
-	for (int number : numbers) {
+	for (int i = 0; i < N; ++i) {
 		int* num;
-		if (impl.get(number, num)) {
+		if (impl.get(numbers[i], num)) {
 			implR ^= *num;
 		}
 	}
 	bench.StopImpl();
-	bench.PrintLast({ TestType::Get }, "Get " + std::to_string(N / 1000) + "k");
+	bench.PrintLast(TestType::Get, "Get " + to_str(N / 1000) + "k");
 
 	if (ledaR != implR) {
 		std::cout << "comparision resulted in differences.\n";
@@ -112,29 +114,29 @@ void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 		numbers.push_back(rd::get());
 	}
 	bench.StartTest();
-	for (int number : numbers) {
-		leda.undefine(number);
+	for (int i = 0; i < N; ++i) {
+		leda.undefine(numbers[i]);
 	}
 	bench.StopLeda();
 
 	bench.StartTest();
-	for (int number : numbers) {
-		impl.remove(number);
+	for (int i = 0; i < N; ++i) {
+		impl.remove(numbers[i]);
 	}
 	bench.StopImpl();
-	bench.PrintLast({ TestType::Del }, "Del " + std::to_string(N / 1000) + "k");
+	bench.PrintLast(TestType::Del, "Del " + to_str(N / 1000) + "k");
 }
 
-void delete_ex(LedaTree& leda, ImplTree& impl, unsigned int N, int seed) {
+void delete_ex(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	rd::seed(seed);
 
-	if (N > (impl.size() * 3) / 4) {
+	if (N > ((int)impl.size() * 3) / 4) {
 		std::cerr << "N is too big at delete exact\n";
 		return;
 	}
 
 	std::vector<int> numbers;
-	for (unsigned int i = 0; i < N; ) {
+	for (int i = 0; i < N; ) {
 		int number = rd::get();
 		if (impl.find(number).exists) {
 			numbers.push_back(rd::get());
@@ -143,17 +145,17 @@ void delete_ex(LedaTree& leda, ImplTree& impl, unsigned int N, int seed) {
 	}
 
 	bench.StartTest();
-	for (int number : numbers) {
-		leda.undefine(number);
+	for (int i = 0; i < N; ++i) {
+		leda.undefine(numbers[i]);
 	}
 	bench.StopLeda();
 
 	bench.StartTest();
-	for (int number : numbers) {
-		impl.remove(number);
+	for (int i = 0; i < N; ++i) {
+		impl.remove(numbers[i]);
 	}
 	bench.StopImpl();
-	bench.PrintLast({ TestType::Del }, "Del Exact " + std::to_string(N / 1000) + "k");
+	bench.PrintLast(TestType::Del, "Del Exact " + to_str(N / 1000) + "k");
 }
 
 void iterate_all(LedaTree& leda, ImplTree& impl) {
@@ -171,7 +173,7 @@ void iterate_all(LedaTree& leda, ImplTree& impl) {
 	bench.StopLeda();
 
 	bench.StartTest();
-	for (Iterator it = impl.first(); it.isValid(); ++it) {
+	for (ImplTree::TIterator it = impl.first(); it.isValid(); ++it) {
 		implR ^= it.key();
 	}
 	bench.StopImpl();
@@ -179,20 +181,20 @@ void iterate_all(LedaTree& leda, ImplTree& impl) {
 	if (ledaR != implR) {
 		std::cout << "iteration resulted in differences.\n";
 	}
-	bench.PrintLast({ TestType::Iterate }, "Iter " + std::to_string(count / 1000000) + "m");
+	bench.PrintLast(TestType::Iterate, "Iter " + to_str(count / 1000000) + "m");
 }
 
 void add_items(LedaTree& leda, ImplTree& impl, int count) {
 	for (int i = 0; i < count; ++i) {
-		leda.insert(i, nullptr);
-		impl.set(i, nullptr);
+		leda.insert(i, NULL);
+		impl.set(i, NULL);
 	}
 }
 
 int main() {
 	LedaTree ledaDic(NodeSize / 2, NodeSize);
 	ImplTree implDic;
-	std::cout << "Memory size of Node: " << sizeof(ImplTree::TNode) << "\n";
+	std::cout << "Node size: " << sizeof(ImplTree::TNode) << " B | Elements: " << NodeSize << "\n";
 
 	rd::setMax(2 * 1000 * 1000);
 
@@ -212,7 +214,7 @@ int main() {
 	get_test	(ledaDic, implDic,  500000, ++seed);
 	delete_test (ledaDic, implDic,  500000, ++seed);
 
-	add_items   (ledaDic, implDic, 50 * 1000 * 1000);
+	add_items   (ledaDic, implDic, 5 * 1000 * 1000);
 	iterate_all (ledaDic, implDic);
 	delete_ex   (ledaDic, implDic, 500000, ++seed);
 #else // in debug just run some basic stuff because all the tests take too much time
@@ -221,12 +223,12 @@ int main() {
 	get_test(ledaDic, implDic, 2000000, 1);
 #endif
 
-	for (auto p : ptrs) {
-		delete p;
-	}
-
 	bench.Print();
 	timer.Print("Generic Timer");
+
+	for (int i = 0; i < ptrs.size(); ++i) {
+		delete ptrs[i];
+	}
 
 	return 0;
 }
