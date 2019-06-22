@@ -16,6 +16,12 @@
 namespace ch = std::chrono;
 #else 
 #include <sys/time.h>
+timeval GetUnixTimeVal() {
+	struct timeval TimeVal;
+	struct timezone TimeZone;
+	gettimeofday(&TimeVal, &TimeZone);
+	return TimeVal;
+}
 #endif
 
 namespace {
@@ -91,19 +97,12 @@ private:
 #else
 	struct timeval StartTime;
 
-	timeval GetUnixMicros() const {
-		struct timeval TimeVal;
-		struct timezone TimeZone;
-		gettimeofday(&TimeVal, &TimeZone);
-		return TimeVal;
-	}
-
 	void RestartTimer() {
-		StartTime = GetUnixMicros();
+		StartTime = GetUnixTimeVal();
 	}
 
 	long long GetCurrent() const {
-        struct timeval EndTime = GetUnixMicros();
+        struct timeval EndTime = GetUnixTimeVal();
 		long long micros;
 		if (EndTime.tv_sec == StartTime.tv_sec) {
 			micros = EndTime.tv_usec - StartTime.tv_usec;
@@ -204,7 +203,7 @@ public:
 	}
 };
 
-
+// utility to convert to dotted number.
 struct dotted : std::numpunct<char> {
 	char do_thousands_sep()   const { 
 		return '.'; 
@@ -226,11 +225,16 @@ struct dotted : std::numpunct<char> {
 	}
 };
 
-#ifdef CPP17
 struct AggregateTimer {
 	long long totalNanos;
 	long long timesHit;
 
+	void Stop() {
+		totalNanos += GetCurrent();
+	}
+
+
+#ifdef CPP17
 	ch::time_point<ch::system_clock> StartTime;
 
 	void Start() {
@@ -238,13 +242,29 @@ struct AggregateTimer {
 		StartTime = ch::system_clock::now();
 	}
 
-	void Stop() {
-		totalNanos += GetCurrent();
-	}
-
 	long long GetCurrent() const {
 		return ch::duration_cast<ch::nanoseconds>(ch::system_clock::now() - StartTime).count();
 	}
+#else 
+	struct timeval StartTime;
+
+	void Start() {
+		timesHit++;
+		StartTime = GetUnixTimeVal();
+	}
+
+	long long GetCurrent() const {
+		struct timeval EndTime = GetUnixTimeVal();
+		long long micros;
+		if (EndTime.tv_sec == StartTime.tv_sec) {
+			micros = EndTime.tv_usec - StartTime.tv_usec;
+		}
+		else {
+			micros = (EndTime.tv_sec - StartTime.tv_sec - 1) * 1000000 + (1000000 - StartTime.tv_usec) + EndTime.tv_usec;
+		}
+		return micros * 1000;
+	}
+#endif
 
 	void Print(const std::string& Title) const {
 		if (timesHit == 0) {
@@ -267,18 +287,6 @@ struct AggregateTimer {
 		}
 	};
 };
-#else
-// todo: implement with unix time
-struct AggregateTimer {
-	void Start() {}
-	void Stop() {}
-	long long GetCurrent() const { return 0; }
-	void Print(const std::string& Title) const {}
-	struct Scope {
-		Scope(AggregateTimer& parent) {}
-	};
-};
-#endif
 
 
 #ifdef DECLARE_EXTERN_TESTBENCH_VARS
