@@ -20,27 +20,26 @@ constexpr int NodeSize = 128;
 using LedaTree = leda::dictionary<int, int*, leda::ab_tree>;
 using ImplTree = Tree<int, int, NodeSize>;
 
-void add_no_bench(LedaTree& leda, ImplTree& impl, int N, int seed) {
+void add_no_bench(LedaTree& leda, ImplTree& impl, int N, int seed, std::vector<int*>& outPtrs) {
 	
 	rd::seed(seed);
 
 	std::vector<int> numbers;
-	std::vector<int*> ptr_numbers;
 	numbers.reserve(N);
-	ptr_numbers.reserve(N);
+	outPtrs.reserve(outPtrs.size() + N);
 
 	for (int i = 0; i < N; ++i) {
 		int num = rd::get();
 		numbers.push_back(num);
-		ptr_numbers.push_back(new int(num));
+		outPtrs.push_back(new int(num));
 	}
 
 	for (int i = 0; i < N; ++i) {
-		leda.insert(numbers[i], ptr_numbers[i]);
+		leda.insert(numbers[i], outPtrs[i]);
 	}
 
 	for (int i = 0; i < N; ++i) {
-		impl.set(numbers[i], ptr_numbers[i]);
+		impl.set(numbers[i], outPtrs[i]);
 	}
 }
 
@@ -126,7 +125,7 @@ void delete_test(LedaTree& leda, ImplTree& impl, int N, int seed) {
 	bench.PrintLast({ TestType::Del }, "Del " + std::to_string(N / 1000) + "k");
 }
 
-void delete_exact_test(LedaTree& leda, ImplTree& impl, unsigned int N, int seed) {
+void delete_ex(LedaTree& leda, ImplTree& impl, unsigned int N, int seed) {
 	rd::seed(seed);
 
 	if (N > (impl.size() * 3) / 4) {
@@ -204,19 +203,18 @@ int main() {
 #ifndef _DEBUG
 	add_test	(ledaDic, implDic, 1000000, ++seed, ptrs);
 	get_test	(ledaDic, implDic, 1000000, ++seed);
-	delete_test (ledaDic, implDic, 2000000, ++seed);
+	delete_ex   (ledaDic, implDic,  500000, ++seed); 
 
-	
 	add_test	(ledaDic, implDic, 1000000, ++seed, ptrs);
 	get_test	(ledaDic, implDic, 1000000, ++seed);
+	delete_test (ledaDic, implDic, 1000000, ++seed);
 	add_test	(ledaDic, implDic,  500000, ++seed, ptrs);
 	get_test	(ledaDic, implDic,  500000, ++seed);
 	delete_test (ledaDic, implDic,  500000, ++seed);
 
-	add_items(ledaDic, implDic, 50 * 1000 * 1000);
-	iterate_all(ledaDic, implDic);
-	delete_exact_test(ledaDic, implDic, 500000, ++seed);
-
+	add_items   (ledaDic, implDic, 50 * 1000 * 1000);
+	iterate_all (ledaDic, implDic);
+	delete_ex   (ledaDic, implDic, 500000, ++seed);
 #else // in debug just run some basic stuff because all the tests take too much time
 	add_test(ledaDic, implDic, 2000000, 0, ptrs);
 	delete_test(ledaDic, implDic, 1000000, 11);

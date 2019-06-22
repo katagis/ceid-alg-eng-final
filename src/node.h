@@ -311,14 +311,21 @@ struct Node {
 	
 	// Returns key index that was deleted
 	int deleteKeyAndPtr(const KeyType& key, Node* ptr) {
-		// PERF: possible to save 20 ms here.
-		// Can leave empty stuff and fix it during later stages (eg redistribution or even node delete)
-		// Can avoid double search if passing more params can detect where the ptr is (before/at/after key)
-		// Can perform binary search when deleting key
-		const int pos = deleteFromArray(keys, childrenCount, key);
-		deleteFromArray(ptrs, childrenCount + !isLeaf, ptr);
+		assert(!isLeaf);
+		const int pos = getIndexOf(key) - 1;
+		deleteFromArrayAt(keys, childrenCount, pos);
+		// linear search here can be optimised but there would be no real advantages
+		// because this code runs too few times.
+		deleteFromArray(ptrs, childrenCount + 1, ptr);
 		childrenCount--;
 		return pos;
+	}
+
+	void deleteKeyValAt(int pos) {
+		assert(isLeaf);
+		deleteFromArrayAt(keys, childrenCount, pos);
+		deleteFromArrayAt(ptrs, childrenCount, pos);
+		childrenCount--;
 	}
 };
 

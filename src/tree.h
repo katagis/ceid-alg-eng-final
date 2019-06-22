@@ -218,7 +218,7 @@ private:
 
 	DataType* deleteAt(Iterator location) {
 		DataType* data = location.leaf->getAsData(location.index);
-		deleteEntryLeaf(location.leaf, location.leaf->keys[location.index], location.leaf->ptrs[location.index]);
+		deleteEntryLeaf(location);
 		elementCount--;
 		return data;
 	}
@@ -391,12 +391,14 @@ private:
 		}
 	}
 
-	void deleteEntryLeaf(TNode* initial, const KeyType& key, TNode* ptr) {
+	void deleteEntryLeaf(Iterator location) {
+		TNode* initial = location.leaf;
 		assert(initial);
 		assert(initial->isLeaf);
+		assert(location.exists);
 
-		KeyType oldKey = key;
-		const int delPos = initial->deleteKeyAndPtr(key, ptr);
+		KeyType oldKey = location.key();
+		initial->deleteKeyValAt(location.index);
 
 		if (initial->isRoot()) {
 			if (initial->childrenCount > 0 || height == 0) {
@@ -414,7 +416,7 @@ private:
 		if (initial->childrenCount >= HN) {
 			return;
 		}
-
+		
 		INCR_BLOCKS();
 		int index = initial->parent->getIndexOf(initial->keys[0]);
 
