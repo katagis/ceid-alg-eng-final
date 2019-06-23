@@ -113,7 +113,8 @@ struct Tree {
 		return true;
 	}
 
-	// Remove a key and return the pointer to the element if it existed.
+	// Remove a key and return true if it existed.
+	// the pointer to the element is set to "popped" param.
 	bool removePop(const KeyType& key, DataType*& popped) {
 		TIterator loc = find(key);
 		if (!loc.exists) {
@@ -128,17 +129,6 @@ struct Tree {
 		return elementCount;
 	}
 
-	void clearNode(TNode* node) {
-		if (node->isLeaf) {
-			delete node;
-			return;
-		}
-		for (int i = 0; i <= node->childrenCount; ++i) {
-			clearNode(node->ptrs[i]);
-		}
-		delete node;
-	}
-
 	void clear() {
 		if (!root->isLeaf) {
 			for (int i = 0; i <= root->childrenCount; ++i) {
@@ -146,6 +136,13 @@ struct Tree {
 			}
 		}
 		init();
+	}
+
+	void clearDelete() {
+		for (TIterator it = first(); it.isValid(); ++it) {
+			delete it.value();
+		}
+		clear();
 	}
 
 	// Clear with a destructor for all elements
@@ -193,6 +190,17 @@ struct Tree {
 	}
 
 private:
+	void clearNode(TNode* node) {
+		if (node->isLeaf) {
+			delete node;
+			return;
+		}
+		for (int i = 0; i <= node->childrenCount; ++i) {
+			clearNode(node->ptrs[i]);
+		}
+		delete node;
+	}
+
 	void init() {
 		root->isLeaf = true;
 		root->childrenCount = 0;
