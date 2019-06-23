@@ -16,9 +16,12 @@ CPP_STANDARD = -std=c++0x
 default: release
 
 release:
-	$(CXX) $(CPPFILE) -o release.out $(DEF_VERBOSITY) $(LEDA_ALL) -O2 $(CPP_STANDARD)
+	$(CXX) $(CPPFILE) -o release.out $(LEDA_ALL) -O2 $(CPP_STANDARD)
 debug:
-	$(CXX) $(CPPFILE) -o debug.out $(DEF_VERBOSITY) $(LEDA_ALL) -g $(CPP_STANDARD)
+	$(CXX) $(CPPFILE) -o debug.out $(LEDA_ALL) -g $(CPP_STANDARD)
+bench:
+	$(CXX) $(CPPFILE) -o release.out $(LEDA_ALL) -O2 $(CPP_STANDARD) -DCOMPILE_BENCHMARK
+
 
 run: release
 	./release.out

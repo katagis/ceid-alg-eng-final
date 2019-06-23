@@ -69,16 +69,22 @@ bool operator<(TestData& rhs, const TestData& lhs) {
 // Struct to hold the benchmark results.
 // Implementation can switch between chrono / unix time through defining USE_CHRONO.
 
-struct Benchmark {
-
+struct BenchmarkResults {
 private:
 	std::vector<TestData> ImplTime;
 	std::vector<TestData> LedaTime;
 	std::vector<long long> BlockReads;
-	std::vector<TestInfo> tests;
-
+	std::vector<TestInfo> TestList;
+	bool OutputHumanReadable;
 public:
+	BenchmarkResults()
+		: OutputHumanReadable(true) {}
+
 	long long CurrentBenchBlocks;
+
+	void SetTextOutput(bool OutputText = true) {
+		OutputHumanReadable = OutputText;
+	}
 
 private:
 	static std::string TimestepStr() {
@@ -120,16 +126,31 @@ public:
 	void PrintBenchLine(const std::string& Title, TestData Impl, TestData Leda, long long Blocks) {
 		std::string BlockStr = Blocks > 0 ? "\tBlocks Accessed: " + std::to_string(Blocks / 1000) + "k" : "";
 
-		std::cout << std::right;
-		std::cout << "# " << std::setw(18) << std::left << Title << " Impl: " << std::right << std::setw(7) << Impl.Time << TimestepStr() << " | "
-			"LEDA: " << std::setw(7) << Leda.Time << TimestepStr() << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << " " << BlockStr << "\n";
+		if (OutputHumanReadable) {
+			std::cout << std::right;
+			std::cout << "# " << std::setw(18) << std::left << Title << " Impl: " << std::right << std::setw(7) << Impl.Time << TimestepStr() << " | "
+				"LEDA: " << std::setw(7) << Leda.Time << TimestepStr() << " => Diff: " << std::setw(6) << Leda.Time - Impl.Time << " " << BlockStr << "\n";
+		}
+		else {
+			std::cout << Title << ", " << Impl.Time << ", " << Leda.Time << ", " << std::to_string(Blocks) << "\n";
+		}
 	}
 
 public:
-
-	void Reset() {
+	void Reset(unsigned int Elements, size_t NodeBytes) {
 		ImplTime.clear();
 		LedaTime.clear();
+		BlockReads.clear();
+		TestList.clear();
+		CurrentBenchBlocks = 0;
+
+		if (OutputHumanReadable) {
+			std::cout << "\n>>> Elements: " << Elements << " | Memsize: " << NodeBytes << " B <<<\n\n";
+		}
+		else {
+			std::cout << "\n" << Elements << ", Impl, Leda, Blocks\n";
+		}
+		
 	}
 
 	void StartTest() {
@@ -150,7 +171,7 @@ public:
 
 	// Print the last added test.
 	void PrintLast(TestType Info, const std::string& Title) {
-		tests.push_back(TestInfo(Info));
+		TestList.push_back(TestInfo(Info));
 		size_t Index = ImplTime.size() - 1;
 		PrintBenchLine(Title, ImplTime[Index], LedaTime[Index], BlockReads[Index]);
 	}
@@ -173,33 +194,36 @@ public:
 			LedaTotal += LedaTime[i];
 			BlocksTotal += BlockReads[i];
 
-			ImplPerType[(int)(tests[i].type)] += ImplTime[i];
-			LedaPerType[(int)(tests[i].type)] += LedaTime[i];
-			BlocksPerType[(int)(tests[i].type)] += BlockReads[i];
+			ImplPerType[(int)(TestList[i].type)] += ImplTime[i];
+			LedaPerType[(int)(TestList[i].type)] += LedaTime[i];
+			BlocksPerType[(int)(TestList[i].type)] += BlockReads[i];
 		}
 
-		std::cout << "\n";
-		PrintBenchLine("Totals: ", ImplTotal, LedaTotal, BlocksTotal);
+		if (OutputHumanReadable) {
+			std::cout << "\n";
+		}
 
-		PrintBenchLine("Get: ", 
+		PrintBenchLine("= Get", 
 					   ImplPerType[(int)(TestType::Get)], 
 					   LedaPerType[(int)(TestType::Get)],
 					   BlocksPerType[(int)(TestType::Get)]);
 
-		PrintBenchLine("Add: ", 
+		PrintBenchLine("= Add", 
 					   ImplPerType[(int)(TestType::Add)],
 					   LedaPerType[(int)(TestType::Add)],
 					   BlocksPerType[(int)(TestType::Add)]);
 
-		PrintBenchLine("Del: ", 
+		PrintBenchLine("= Del", 
 					   ImplPerType[(int)(TestType::Del)],
 					   LedaPerType[(int)(TestType::Del)], 
 					   BlocksPerType[(int)(TestType::Del)]);
 
-		PrintBenchLine("Iter: ", 
+		PrintBenchLine("= Iter", 
 					   ImplPerType[(int)(TestType::Iterate)], 
 					   LedaPerType[(int)(TestType::Iterate)], 
 					   BlocksPerType[(int)(TestType::Iterate)]);
+
+		PrintBenchLine("= Totals", ImplTotal, LedaTotal, BlocksTotal);
 	}
 };
 
@@ -233,6 +257,9 @@ struct AggregateTimer {
 		totalNanos += GetCurrent();
 	}
 
+	AggregateTimer()
+		: totalNanos(0)
+		, timesHit(0) {}
 
 #ifdef CPP17
 	ch::time_point<ch::system_clock> StartTime;
@@ -294,7 +321,7 @@ struct AggregateTimer {
 #  define INCR_BLOCKS() do{ ++bench.CurrentBenchBlocks; }while(0)
 # endif
 extern AggregateTimer timer;
-extern Benchmark bench;
+extern BenchmarkResults bench;
 #endif
 
 #endif //__TESTBENCH_H_
