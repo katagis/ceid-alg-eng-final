@@ -24,28 +24,30 @@ struct Benchmark {
 
 		std::vector<int*> ptrs;
 
-		int seed = 1;
+		int seed = 98;
 
-		add_test	(ledaDic, implDic, 1000000, ++seed, ptrs);
-		get_test	(ledaDic, implDic, 1000000, ++seed);
-		delete_ex	(ledaDic, implDic,  500000, ++seed);
+		add_test(ledaDic, implDic, 1000000, ++seed, ptrs);
+		get_test(ledaDic, implDic, 1000000, ++seed);
+		delete_ex(ledaDic, implDic, 500000, ++seed);
 
-		add_test	(ledaDic, implDic, 1000000, ++seed, ptrs);
-		get_test	(ledaDic, implDic, 1000000, ++seed);
-		delete_test	(ledaDic, implDic, 1000000, ++seed);
-		add_test	(ledaDic, implDic,  500000, ++seed, ptrs);
-		get_test	(ledaDic, implDic,  500000, ++seed);
-		delete_test	(ledaDic, implDic,  500000, ++seed);
+		add_test(ledaDic, implDic, 1000000, ++seed, ptrs);
+		get_test(ledaDic, implDic, 1000000, ++seed);
+		delete_test(ledaDic, implDic, 1000000, ++seed);
+		add_test(ledaDic, implDic, 500000, ++seed, ptrs);
+		get_test(ledaDic, implDic, 500000, ++seed);
+		delete_test(ledaDic, implDic, 500000, ++seed);
 
-		add_items	(ledaDic, implDic, 5 * 1000 * 1000 * AllowedMemoryGBs);
-		iterate_all	(ledaDic, implDic);
-		delete_ex	(ledaDic, implDic, 500000, ++seed);
+		add_items(ledaDic, implDic, 5 * 1000 * 1000 * AllowedMemoryGBs);
+		iterate_all(ledaDic, implDic);
+		delete_ex(ledaDic, implDic, 500000, ++seed);
+
 
 		bench.Print();
 
 		for (int i = 0; i < ptrs.size(); ++i) {
 			delete ptrs[i];
 		}
+		implDic.clear();
 	}
 
 	static void add_no_bench(LedaTree& leda, ImplTree& impl, int N, int seed, std::vector<int*>& outPtrs) {
@@ -64,9 +66,6 @@ struct Benchmark {
 
 		for (int i = 0; i < N; ++i) {
 			leda.insert(numbers[i], outPtrs[i]);
-		}
-
-		for (int i = 0; i < N; ++i) {
 			impl.set(numbers[i], outPtrs[i]);
 		}
 	}
@@ -128,6 +127,38 @@ struct Benchmark {
 		bench.StopImpl();
 		bench.PrintLast(TestType::Get, "Get " + to_str(N / 1000) + "k");
 
+		if (ledaR != implR) {
+			std::cout << "comparision resulted in differences.\n";
+		}
+	}
+
+	static void get_no_comp(LedaTree& leda, ImplTree& impl, int N, int seed) {
+		rd::seed(seed);
+
+		std::vector<int> numbers;
+		for (int i = 0; i < N; ++i) {
+			numbers.push_back(rd::get());
+		}
+
+		int ledaR = 0;
+		int implR = 0;
+		bench.StartTest();
+		for (int i = 0; i < N; ++i) {
+			leda::dic_item r = leda.lookup(numbers[i]);
+			if (r) {
+				++ledaR;
+			}
+		}
+		bench.StopLeda();
+
+		bench.StartTest();
+		for (int i = 0; i < N; ++i) {
+			if (impl.find(numbers[i]).exists) {
+				++implR;
+			}
+		}
+		bench.StopImpl();
+		bench.PrintLast(TestType::Get, "Get NoCmp" + to_str(N / 1000) + "k");
 		if (ledaR != implR) {
 			std::cout << "comparision resulted in differences.\n";
 		}

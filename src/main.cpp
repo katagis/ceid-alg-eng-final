@@ -89,6 +89,11 @@ void addPreset(Tree<std::string, std::string, Size>& tree, int count) {
 	}
 }
 
+template<typename T1, typename T2, unsigned int Size>
+void addPreset(Tree<T1, T2, Size>& tree, int count) {
+	std::cout << "error: Preset not implemented for this tree type.\n";
+}
+
 template<typename Key, typename Val, unsigned int Size>
 void interactiveTreeTemplate() {
 	Tree<Key, Val, Size> tree;

@@ -203,27 +203,27 @@ public:
 			std::cout << "\n";
 		}
 
-		PrintBenchLine("= Get", 
+		PrintBenchLine("# Get", 
 					   ImplPerType[(int)(TestType::Get)], 
 					   LedaPerType[(int)(TestType::Get)],
 					   BlocksPerType[(int)(TestType::Get)]);
 
-		PrintBenchLine("= Add", 
+		PrintBenchLine("# Add", 
 					   ImplPerType[(int)(TestType::Add)],
 					   LedaPerType[(int)(TestType::Add)],
 					   BlocksPerType[(int)(TestType::Add)]);
 
-		PrintBenchLine("= Del", 
+		PrintBenchLine("# Del", 
 					   ImplPerType[(int)(TestType::Del)],
 					   LedaPerType[(int)(TestType::Del)], 
 					   BlocksPerType[(int)(TestType::Del)]);
 
-		PrintBenchLine("= Iter", 
+		PrintBenchLine("# Iter", 
 					   ImplPerType[(int)(TestType::Iterate)], 
 					   LedaPerType[(int)(TestType::Iterate)], 
 					   BlocksPerType[(int)(TestType::Iterate)]);
 
-		PrintBenchLine("= Totals", ImplTotal, LedaTotal, BlocksTotal);
+		PrintBenchLine("# Totals", ImplTotal, LedaTotal, BlocksTotal);
 	}
 };
 
